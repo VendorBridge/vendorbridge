@@ -1,0 +1,27 @@
+Folder PATH listing for volume Windows
+Volume serial number is 00000280 2A91:9DD6
+C:\USERS\VRUND\ONEDRIVE\DESKTOP\VENDORBRIDGE\VENDORBRIDGE\SRC
++---app
+|   |   favicon.ico
+|   |   globals.css
+|   |   layout.tsx
+|   |   page.tsx
+|   |   
+|   +---approvals
+|   +---dashboard
+|   +---invoices
+|   +---login
+|   +---quotations
+|   +---rfqs
+|   \---vendors
++---components
+|   +---dashboard
+|   +---layout
+|   +---quotations
+|   +---rfqs
+|   +---ui
+|   \---vendors
++---data
++---lib
++---services
+\---types
