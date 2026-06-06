@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Receipt, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function InvoicesPage() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +83,10 @@ export default function InvoicesPage() {
         </div>
         <Button
           size="lg"
+          onClick={() => {
+            alert("Invoices are generated directly from official Purchase Orders. Redirecting you to the Purchase Orders page where you can choose a PO and generate its invoice.");
+            router.push("/purchase-orders");
+          }}
           className="gap-2 rounded-xl shadow-md shadow-[hsl(var(--primary))]/20"
         >
           <Receipt className="size-4" />

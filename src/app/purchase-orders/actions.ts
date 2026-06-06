@@ -75,3 +75,43 @@ export async function getPurchaseOrders(filters: POFilters = {}) {
     },
   };
 }
+
+export async function getPurchaseOrderById(id: string) {
+  const po = await db.purchaseOrder.findUnique({
+    where: { id },
+  });
+
+  if (!po) return null;
+
+  const [vendor, rfq, items] = await Promise.all([
+    db.vendor.findUnique({ where: { id: po.vendorId } }),
+    db.rfq.findUnique({ where: { id: po.rfqId } }),
+    db.poItem.findMany({ where: { poId: id } }),
+  ]);
+
+  // Check if an invoice has already been generated for this PO
+  const invoice = await db.invoice.findFirst({
+    where: { poId: id },
+    select: { id: true, invoiceNumber: true }
+  });
+
+  return {
+    ...po,
+    poDate: po.poDate.toISOString(),
+    expectedDelivery: po.expectedDelivery?.toISOString() || null,
+    subtotal: po.subtotal.toNumber(),
+    discountAmount: po.discountAmount.toNumber(),
+    taxAmount: po.taxAmount.toNumber(),
+    grandTotal: po.grandTotal.toNumber(),
+    vendor,
+    rfq,
+    items: items.map(item => ({
+      ...item,
+      quantity: item.quantity.toNumber(),
+      unitPrice: item.unitPrice.toNumber(),
+      lineTotal: item.lineTotal ? item.lineTotal.toNumber() : 0,
+    })),
+    invoice,
+  };
+}
+

@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
-  Download,
-  Printer,
   FileText,
   Building2,
   Truck,
@@ -14,15 +13,15 @@ import {
   CheckCircle2,
   ArrowLeft,
   AlertTriangle,
-  Mail
+  Receipt,
+  Download,
+  Printer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { getInvoiceById, markInvoiceAsPaidAction, sendInvoiceEmailAction, recordInvoicePrintAction } from "../actions";
+import { getPurchaseOrderById } from "../actions";
+import { createInvoiceFromPoAction } from "@/app/invoices/actions";
 
-// ─────────────────────────────────────────────────────
-// Format currency
-// ─────────────────────────────────────────────────────
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -37,37 +36,38 @@ const BILL_TO = {
   gstin: "GSTIN: 24AAACV3894F1Z3",
 };
 
-export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+const STATUS_STYLES: Record<string, string> = {
+  DRAFT: "bg-gray-500/15 text-gray-600 dark:text-gray-400 border-gray-500/20",
+  ISSUED: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  ACKNOWLEDGED: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/20",
+  PARTIALLY_FULFILLED: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  FULFILLED: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  CANCELLED: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/20",
+};
+
+export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
   const router = useRouter();
-  const invoiceRef = useRef<HTMLDivElement>(null);
 
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [sentInfo, setSentInfo] = useState<{ to: string | null; at: string | null }>({ to: null, at: null });
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    fetchInvoice();
+    fetchPO();
   }, [id]);
 
-  const fetchInvoice = async () => {
+  const fetchPO = async () => {
     setLoading(true);
     try {
-      const res = await getInvoiceById(id);
-      if (res.success) {
-        setData(res.data);
-        if (res.data) {
-          setSentInfo({
-            to: res.data.emailSentTo,
-            at: res.data.emailSentAt ? new Date(res.data.emailSentAt).toLocaleString() : null,
-          });
-        }
+      const res = await getPurchaseOrderById(id);
+      if (res) {
+        setData(res);
       } else {
-        setError(res.error || "Failed to load invoice details.");
+        setError("Purchase Order not found.");
       }
     } catch (err: any) {
       console.error(err);
@@ -77,67 +77,19 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  const handleMarkAsPaid = async () => {
-    setIsUpdating(true);
+  const handleGenerateInvoice = async () => {
+    setIsGenerating(true);
     try {
-      const res = await markInvoiceAsPaidAction(id);
+      const res = await createInvoiceFromPoAction(id);
       if (res.success) {
-        setData((prev: any) => ({
-          ...prev,
-          status: "PAID",
-        }));
+        router.push(`/invoices/${res.invoiceId}`);
       } else {
-        alert(res.error || "Failed to mark invoice as paid.");
+        alert(res.error || "Failed to generate invoice.");
       }
     } catch (err: any) {
       alert(err.message || "An error occurred.");
     } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const handlePrint = async () => {
-    window.print();
-    try {
-      const res = await recordInvoicePrintAction(id);
-      if (res.success) {
-        console.log("Print recorded:", res.printedAt);
-      }
-    } catch (e) {
-      console.error("Failed to record print:", e);
-    }
-  };
-
-  const handleDownload = async () => {
-    alert("Downloading PDF (Feature simulated).");
-    try {
-      const res = await recordInvoicePrintAction(id);
-      if (res.success) {
-        console.log("Download recorded:", res.printedAt);
-      }
-    } catch (e) {
-      console.error("Failed to record download:", e);
-    }
-  };
-
-  const handleSendEmail = async () => {
-    const defaultEmail = data?.vendor?.contactEmail || "finance@buyer.com";
-    const email = prompt("Enter recipient email address:", defaultEmail);
-    if (!email) return;
-
-    try {
-      const res = await sendInvoiceEmailAction(id, email);
-      if (res.success) {
-        setSentInfo({
-          to: res.email,
-          at: res.sentAt ? new Date(res.sentAt).toLocaleString() : new Date().toLocaleString(),
-        });
-        alert(`Invoice successfully emailed to ${res.email}`);
-      } else {
-        alert(res.error || "Failed to send email.");
-      }
-    } catch (err: any) {
-      alert(err.message || "An error occurred.");
+      setIsGenerating(false);
     }
   };
 
@@ -145,7 +97,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[hsl(var(--primary))]"></div>
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading invoice details...</p>
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading Purchase Order details...</p>
       </div>
     );
   }
@@ -156,16 +108,16 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         <div className="inline-flex p-3 rounded-full bg-red-500/10 text-red-500">
           <AlertTriangle className="size-8" />
         </div>
-        <h2 className="text-xl font-bold">Error Loading Invoice</h2>
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">{error || "Invoice details could not be found."}</p>
-        <Button onClick={() => router.push("/invoices")} variant="outline" className="gap-2 rounded-xl">
-          <ArrowLeft className="size-4" /> Back to Invoices
+        <h2 className="text-xl font-bold">Error Loading Purchase Order</h2>
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">{error || "Purchase Order details could not be found."}</p>
+        <Button onClick={() => router.push("/purchase-orders")} variant="outline" className="gap-2 rounded-xl">
+          <ArrowLeft className="size-4" /> Back to Purchase Orders
         </Button>
       </div>
     );
   }
 
-  const { invoiceNumber, invoiceDate, dueDate, status, subtotal, discountAmount, taxPct, taxAmount, grandTotal, po, vendor, items } = data;
+  const { poNumber, poDate, expectedDelivery, status, subtotal, discountAmount, taxPct, taxAmount, grandTotal, vendor, items, invoice } = data;
 
   const cgst = Math.round(taxAmount / 2);
   const sgst = Math.round(taxAmount / 2);
@@ -174,12 +126,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     <div className="p-6 lg:p-8 max-w-[1000px] mx-auto space-y-6">
       {/* Back Button */}
       <Button
-        onClick={() => router.push("/invoices")}
+        onClick={() => router.push("/purchase-orders")}
         variant="ghost"
         size="sm"
         className="gap-2 rounded-xl text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
       >
-        <ArrowLeft className="size-4" /> Back to Invoices
+        <ArrowLeft className="size-4" /> Back to Purchase Orders
       </Button>
 
       {/* Header */}
@@ -192,11 +144,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       >
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-[hsl(var(--foreground))]">
-            Invoice details
+            Purchase Order details
           </h1>
           <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-            <span className="font-semibold text-[hsl(var(--foreground))]">Invoice: {invoiceNumber}</span>
-            {" — "}associated with PO {po?.poNumber || "N/A"}
+            <span className="font-semibold text-[hsl(var(--foreground))]">PO Number: {poNumber}</span>
           </p>
         </div>
 
@@ -205,23 +156,15 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <Button
             variant="outline"
             className="gap-2 rounded-xl hover:border-[hsl(var(--ring))]/30 transition-all"
-            onClick={handleSendEmail}
-          >
-            <Mail className="size-4" />
-            <span className="hidden sm:inline">Send via Email</span>
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2 rounded-xl hover:border-[hsl(var(--ring))]/30 transition-all"
-            onClick={handleDownload}
+            onClick={() => alert("Downloading PDF (Feature simulated).")}
           >
             <Download className="size-4" />
-            <span className="hidden sm:inline">Download PDF</span>
+            <span className="hidden sm:inline">Download PO</span>
           </Button>
           <Button
             variant="outline"
             className="gap-2 rounded-xl hover:border-[hsl(var(--ring))]/30 transition-all"
-            onClick={handlePrint}
+            onClick={() => window.print()}
           >
             <Printer className="size-4" />
             <span className="hidden sm:inline">Print</span>
@@ -229,9 +172,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      {/* Invoice Document Card */}
+      {/* Document Card */}
       <div
-        ref={invoiceRef}
         className={cn(
           "rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]",
           "shadow-sm overflow-hidden transition-all duration-700",
@@ -256,7 +198,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-center gap-2 mb-3">
                 <Building2 className="size-4 text-[hsl(var(--primary))]" />
                 <span className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-                  Bill To
+                  Bill To (Buyer)
                 </span>
               </div>
               <p className="text-sm font-bold text-[hsl(var(--foreground))]">{BILL_TO.name}</p>
@@ -273,7 +215,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-center gap-2 mb-3">
                 <Truck className="size-4 text-emerald-500" />
                 <span className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-                  Billed From (Vendor)
+                  Vendor Details
                 </span>
               </div>
               <p className="text-sm font-bold text-[hsl(var(--foreground))]">{vendor?.companyName || "Unknown Vendor"}</p>
@@ -287,7 +229,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           </div>
 
           {/* Details Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
             <div className="rounded-xl bg-[hsl(var(--muted))]/20 border border-[hsl(var(--border))] px-4 py-3">
               <div className="flex items-center gap-1.5 mb-1">
                 <Hash className="size-3 text-[hsl(var(--muted-foreground))]" />
@@ -295,7 +237,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   PO Number
                 </span>
               </div>
-              <p className="text-sm font-bold text-[hsl(var(--foreground))]">{po?.poNumber || "N/A"}</p>
+              <p className="text-sm font-bold text-[hsl(var(--foreground))]">{poNumber}</p>
             </div>
 
             <div className="rounded-xl bg-[hsl(var(--muted))]/20 border border-[hsl(var(--border))] px-4 py-3">
@@ -306,19 +248,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 </span>
               </div>
               <p className="text-sm font-bold text-[hsl(var(--foreground))]">
-                {po?.poDate ? new Date(po.poDate).toLocaleDateString("en-IN") : "N/A"}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-[hsl(var(--muted))]/20 border border-[hsl(var(--border))] px-4 py-3">
-              <div className="flex items-center gap-1.5 mb-1">
-                <FileText className="size-3 text-[hsl(var(--muted-foreground))]" />
-                <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-                  Invoice Date
-                </span>
-              </div>
-              <p className="text-sm font-bold text-[hsl(var(--foreground))]">
-                {new Date(invoiceDate).toLocaleDateString("en-IN")}
+                {new Date(poDate).toLocaleDateString("en-IN")}
               </p>
             </div>
 
@@ -326,11 +256,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-center gap-1.5 mb-1">
                 <Clock className="size-3 text-amber-500" />
                 <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-                  Due Date
+                  Expected Delivery
                 </span>
               </div>
               <p className="text-sm font-bold text-[hsl(var(--foreground))]">
-                {dueDate ? new Date(dueDate).toLocaleDateString("en-IN") : "N/A"}
+                {expectedDelivery ? new Date(expectedDelivery).toLocaleDateString("en-IN") : "Standard Delivery"}
               </p>
             </div>
           </div>
@@ -434,46 +364,48 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         )}
         style={{ transitionDelay: "300ms" }}
       >
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-[hsl(var(--muted-foreground))]">Status:</span>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border",
-                status === "PAID"
-                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                  : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20"
-              )}
-            >
-              {status === "PAID" ? (
-                <CheckCircle2 className="size-3.5" />
-              ) : (
-                <Clock className="size-3.5" />
-              )}
-              {status === "PAID" ? "Paid" : "Pending Payment"}
-            </span>
-          </div>
-          {sentInfo.to && (
-            <div className="text-xs text-[hsl(var(--muted-foreground))] flex items-center gap-1.5 border-l border-[hsl(var(--border))] pl-4">
-              <Mail className="size-3.5 text-blue-500" />
-              <span>
-                Sent to: <span className="font-semibold text-[hsl(var(--foreground))]">{sentInfo.to}</span> on {sentInfo.at}
-              </span>
-            </div>
-          )}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-[hsl(var(--muted-foreground))]">Status:</span>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border",
+              STATUS_STYLES[status] || ""
+            )}
+          >
+            {status === "FULFILLED" ? (
+              <CheckCircle2 className="size-3.5" />
+            ) : (
+              <Clock className="size-3.5" />
+            )}
+            {status.replace("_", " ")}
+          </span>
         </div>
 
-        {status !== "PAID" && (
-          <Button
-            onClick={handleMarkAsPaid}
-            disabled={isUpdating}
-            className="gap-2 rounded-xl shadow-md shadow-emerald-500/20 bg-emerald-500 hover:bg-emerald-600 text-white transition-all animate-in fade-in"
-            size="sm"
-          >
-            <CheckCircle2 className="size-3.5" />
-            {isUpdating ? "Updating..." : "Mark as Paid"}
-          </Button>
-        )}
+        <div>
+          {invoice ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                Invoice generated: <span className="font-mono font-semibold text-[hsl(var(--foreground))]">{invoice.invoiceNumber}</span>
+              </span>
+              <Link href={`/invoices/${invoice.id}`}>
+                <Button variant="outline" size="sm" className="rounded-xl gap-1.5">
+                  <Receipt className="size-3.5" />
+                  View Invoice
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <Button
+              onClick={handleGenerateInvoice}
+              disabled={isGenerating}
+              className="gap-2 rounded-xl shadow-md bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/90 text-white transition-all"
+              size="sm"
+            >
+              <Receipt className="size-3.5" />
+              {isGenerating ? "Generating..." : "Generate Invoice"}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

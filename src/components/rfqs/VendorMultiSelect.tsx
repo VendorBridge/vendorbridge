@@ -166,7 +166,7 @@ export function VendorMultiSelect({ category }: VendorMultiSelectProps) {
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setModalOpen(false)}
           />
-          <div className="relative w-full max-w-lg rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-2xl">
+          <div className="relative w-full max-w-lg rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-2xl flex flex-col max-h-[85vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))]">
               <h3 className="text-base font-semibold">Select Vendors</h3>
               <button
@@ -190,7 +190,7 @@ export function VendorMultiSelect({ category }: VendorMultiSelectProps) {
               </div>
             </div>
 
-            <div className="max-h-72 overflow-y-auto p-2">
+            <div className="flex-1 overflow-y-auto p-2 min-h-[150px]">
               {loading ? (
                 <p className="text-sm text-center py-8 text-[hsl(var(--muted-foreground))]">
                   Loading vendors...

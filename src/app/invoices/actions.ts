@@ -208,3 +208,175 @@ export async function markInvoiceAsPaidAction(id: string) {
     return { success: false as const, error: err.message || "Failed to update invoice." };
   }
 }
+
+export async function createInvoiceFromPoAction(poId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return { success: false as const, error: "Unauthorized." };
+  }
+
+  // Check if PO exists
+  const po = await db.purchaseOrder.findUnique({
+    where: { id: poId }
+  });
+
+  if (!po) {
+    return { success: false as const, error: "Purchase Order not found." };
+  }
+
+  // Check if invoice already exists
+  const existingInvoice = await db.invoice.findFirst({
+    where: { poId },
+    select: { id: true, invoiceNumber: true }
+  });
+
+  if (existingInvoice) {
+    return { success: true as const, invoiceId: existingInvoice.id };
+  }
+
+  try {
+    const result = await db.$transaction(async (tx) => {
+      const invoiceCount = await tx.invoice.count();
+      const invoiceNumber = `INV-${new Date().getFullYear()}-${String(invoiceCount + 1).padStart(4, '0')}`;
+
+      // Due date is PO date + 30 days
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+
+      // Create invoice
+      const invoice = await tx.invoice.create({
+        data: {
+          invoiceNumber,
+          poId,
+          vendorId: po.vendorId,
+          rfqId: po.rfqId,
+          status: "ISSUED",
+          invoiceDate: new Date(),
+          dueDate,
+          subtotal: po.subtotal,
+          discountAmount: po.discountAmount,
+          taxPct: po.taxPct,
+          taxAmount: po.taxAmount,
+          grandTotal: po.grandTotal,
+          paymentTerms: po.paymentTerms,
+          createdBy: userId,
+        }
+      });
+
+      // Get PO items
+      const poItems = await tx.poItem.findMany({
+        where: { poId }
+      });
+
+      // Create invoice items
+      await tx.invoiceItem.createMany({
+        data: poItems.map((item, idx) => ({
+          invoiceId: invoice.id,
+          poItemId: item.id,
+          itemName: item.itemName,
+          description: item.description,
+          quantity: item.quantity,
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          taxPct: po.taxPct,
+          lineSubtotal: item.lineTotal,
+          sortOrder: item.sortOrder ?? idx,
+        }))
+      });
+
+      // Update PO status to ACKNOWLEDGED
+      await tx.purchaseOrder.update({
+        where: { id: poId },
+        data: { status: "ACKNOWLEDGED" }
+      });
+
+      // Log activity
+      await tx.activityLog.create({
+        data: {
+          entityType: "INVOICE",
+          entityId: invoice.id,
+          action: "CREATED",
+          actorId: userId,
+          description: `Invoice ${invoiceNumber} generated from PO ${po.poNumber}.`,
+        }
+      });
+
+      return invoice;
+    });
+
+    return { success: true as const, invoiceId: result.id };
+  } catch (err: any) {
+    console.error(err);
+    return { success: false as const, error: err.message || "Failed to create invoice from PO." };
+  }
+}
+
+export async function sendInvoiceEmailAction(invoiceId: string, email: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return { success: false as const, error: "Unauthorized." };
+  }
+
+  try {
+    const invoice = await db.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        emailSentTo: email,
+        emailSentAt: new Date(),
+      }
+    });
+
+    // Create activity log
+    await db.activityLog.create({
+      data: {
+        entityType: "INVOICE",
+        entityId: invoiceId,
+        action: "UPDATED",
+        actorId: userId,
+        description: `Invoice ${invoice.invoiceNumber} sent via email to ${email}.`,
+      }
+    });
+
+    return { success: true as const, email, sentAt: invoice.emailSentAt?.toISOString() };
+  } catch (err: any) {
+    console.error(err);
+    return { success: false as const, error: err.message || "Failed to update invoice email status." };
+  }
+}
+
+export async function recordInvoicePrintAction(invoiceId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return { success: false as const, error: "Unauthorized." };
+  }
+
+  try {
+    const invoice = await db.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        printedAt: new Date(),
+      }
+    });
+
+    // Create activity log
+    await db.activityLog.create({
+      data: {
+        entityType: "INVOICE",
+        entityId: invoiceId,
+        action: "UPDATED",
+        actorId: userId,
+        description: `Invoice ${invoice.invoiceNumber} printed/downloaded.`,
+      }
+    });
+
+    return { success: true as const, printedAt: invoice.printedAt?.toISOString() };
+  } catch (err: any) {
+    console.error(err);
+    return { success: false as const, error: err.message || "Failed to record invoice print status." };
+  }
+}
+
+

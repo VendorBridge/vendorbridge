@@ -54,7 +54,7 @@ function NewRfqPageContent() {
   const [isDirty, setIsDirty] = useState(false);
 
   const form = useForm<RfqFormValues>({
-    resolver: zodResolver(rfqSchema),
+    resolver: zodResolver(rfqSchema) as any,
     defaultValues: defaultRfqFormValues,
     mode: "onTouched",
   });

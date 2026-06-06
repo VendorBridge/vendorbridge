@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, ShoppingCart, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function PurchaseOrdersPage() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +82,10 @@ export default function PurchaseOrdersPage() {
         </div>
         <Button
           size="lg"
+          onClick={() => {
+            alert("Purchase Orders are generated automatically when a manager approves a quotation. Redirecting to approvals...");
+            router.push("/approvals");
+          }}
           className="gap-2 rounded-xl shadow-md shadow-[hsl(var(--primary))]/20"
         >
           <ShoppingCart className="size-4" />
@@ -174,6 +180,7 @@ export default function PurchaseOrdersPage() {
                   pos.map((po) => (
                     <tr
                       key={po.id}
+                      onClick={() => router.push(`/purchase-orders/${po.id}`)}
                       className="border-b border-[hsl(var(--border))]/50 last:border-0 hover:bg-[hsl(var(--accent))]/50 transition-colors cursor-pointer"
                     >
                       <td className="py-4 px-4 font-medium text-[hsl(var(--foreground))]">

@@ -34,7 +34,7 @@ const attachmentSchema = z.object({
 export const rfqDraftSchema = z.object({
   title: z.string().min(1, "Required").max(300, "Max 300 characters"),
   category: vendorCategoryEnum,
-  deadline: z.date().optional(),
+  deadline: z.coerce.date().optional(),
   description: z.string().optional(),
   deliveryLocation: z.string().max(300).optional(),
   paymentTerms: z.string().max(200).optional(),
@@ -47,7 +47,7 @@ export const rfqDraftSchema = z.object({
 export const rfqSchema = z.object({
   title: z.string().min(1, "Required").max(300, "Max 300 characters"),
   category: vendorCategoryEnum,
-  deadline: z
+  deadline: z.coerce
     .date({ error: "Required" })
     .refine((d) => {
       const today = new Date();

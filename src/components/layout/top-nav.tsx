@@ -4,13 +4,40 @@ import { Sparkles, Bell, Sun, Moon, LogOut, Search } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { getCurrentUser } from "@/app/actions/session";
+import { signOut } from "next-auth/react";
 
 export function TopNav() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [user, setUser] = useState<{ firstName: string; lastName: string; role: string } | null>(null);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    getCurrentUser().then((res) => {
+      if (res) {
+        setUser(res);
+      }
+    });
+  }, []);
+
+  const initials = user
+    ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+    : "PP";
+
+  const fullName = user
+    ? `${user.firstName} ${user.lastName}`
+    : "Priya Patel";
+
+  const formatRole = (role: string) => {
+    if (!role) return "Procurement Officer";
+    return role.split("_").map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(" ");
+  };
+
+  const roleName = user
+    ? formatRole(user.role)
+    : "Procurement Officer";
 
   return (
     <header
@@ -115,9 +142,15 @@ export function TopNav() {
           <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-red-500 ring-2 ring-[hsl(var(--background))]" />
         </button>
 
-        {/* Avatar */}
+        {/* Avatar / Sign Out */}
         <button
           type="button"
+          onClick={() => {
+            if (confirm("Are you sure you want to sign out?")) {
+              signOut({ callbackUrl: "/login" });
+            }
+          }}
+          title="Sign Out"
           className={cn(
             "flex items-center gap-2 ml-1 p-1 pr-3 rounded-xl cursor-pointer",
             "hover:bg-[hsl(var(--accent))] transition-colors duration-200"
@@ -130,16 +163,17 @@ export function TopNav() {
                 "linear-gradient(135deg, hsl(249,82%,50%) 0%, hsl(262,80%,55%) 100%)",
             }}
           >
-            PP
+            {initials}
           </div>
           <div className="hidden sm:block text-left">
             <p className="text-sm font-medium text-[hsl(var(--foreground))] leading-none">
-              Priya Patel
+              {fullName}
             </p>
             <p className="text-[11px] text-[hsl(var(--muted-foreground))] leading-tight mt-0.5">
-              Procurement Officer
+              {roleName}
             </p>
           </div>
+          <LogOut className="size-3.5 text-[hsl(var(--muted-foreground))] ml-1 hidden sm:block" />
         </button>
       </div>
     </header>

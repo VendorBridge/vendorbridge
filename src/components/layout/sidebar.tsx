@@ -16,7 +16,8 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getCurrentUser } from "@/app/actions/session";
 
 // ─────────────────────────────────────────────────────
 // Navigation items
@@ -33,9 +34,31 @@ const NAV_ITEMS = [
   { label: "Activity", href: "/activity", icon: Activity },
 ];
 
+const ROLE_NAV_ITEMS: Record<string, string[]> = {
+  ADMIN: ["Dashboard", "Vendors", "RFQ's", "Approvals", "Purchase Orders", "Invoices", "Reports", "Activity"],
+  MANAGER: ["Dashboard", "RFQ's", "Approvals", "Purchase Orders", "Invoices", "Reports", "Activity"],
+  PROCUREMENT_OFFICER: ["Dashboard", "Vendors", "RFQ's", "Approvals", "Purchase Orders", "Invoices", "Reports", "Activity"],
+  VENDOR: ["Dashboard", "RFQ's", "Quotations", "Purchase Orders", "Invoices", "Activity"],
+};
+
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [role, setRole] = useState<string>("");
+
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      if (user?.role) {
+        setRole(user.role);
+      }
+    });
+  }, []);
+
+  const filteredItems = NAV_ITEMS.filter((item) => {
+    if (!role) return true; // Show all while loading
+    const allowed = ROLE_NAV_ITEMS[role] || [];
+    return allowed.includes(item.label);
+  });
 
   return (
     <aside
@@ -66,7 +89,7 @@ export function Sidebar() {
 
       {/* Nav items */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
-        {NAV_ITEMS.map((item) => {
+        {filteredItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.icon;
@@ -116,3 +139,4 @@ export function Sidebar() {
     </aside>
   );
 }
+
