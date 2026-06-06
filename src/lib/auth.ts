@@ -47,20 +47,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           select: {
             id: true,
             email: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             passwordHash: true,
             role: true,
-            isActive: true,
-            deletedAt: true,
+            status: true,
           },
         });
 
-        if (!user || user.deletedAt !== null) {
+        if (!user) {
           throw new Error("INVALID_CREDENTIALS");
         }
 
         // Only active users can log in
-        if (!user.isActive) {
+        if (user.status !== "ACTIVE") {
           throw new Error("ACCOUNT_INACTIVE");
         }
 
@@ -79,7 +79,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return {
           id: user.id,
           email: user.email,
-          name: user.name,
+          name: `${user.firstName} ${user.lastName}`,
           role: user.role,
         };
       },
