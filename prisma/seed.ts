@@ -20,7 +20,7 @@ async function main() {
     update: {},
     create: {
       email: "admin@vendorbridge.com",
-      passwordHash: "$2b$12$placeholder_admin_hash", // Replace with bcrypt hash
+      passwordHash: "$2b$10$7LCF5MOe2ILtr049h2Op/uFVSPhAmIKvNBtytSichM.MT38MTUiFm", // bcrypt hash for 'password'
       firstName: "System",
       lastName: "Admin",
       role: UserRole.ADMIN,
@@ -32,7 +32,7 @@ async function main() {
     update: {},
     create: {
       email: "manager@vendorbridge.com",
-      passwordHash: "$2b$12$placeholder_manager_hash",
+      passwordHash: "$2b$10$7LCF5MOe2ILtr049h2Op/uFVSPhAmIKvNBtytSichM.MT38MTUiFm",
       firstName: "Rajesh",
       lastName: "Sharma",
       role: UserRole.MANAGER,
@@ -44,7 +44,7 @@ async function main() {
     update: {},
     create: {
       email: "procurement@vendorbridge.com",
-      passwordHash: "$2b$12$placeholder_officer_hash",
+      passwordHash: "$2b$10$7LCF5MOe2ILtr049h2Op/uFVSPhAmIKvNBtytSichM.MT38MTUiFm",
       firstName: "Priya",
       lastName: "Patel",
       role: UserRole.PROCUREMENT_OFFICER,
@@ -56,7 +56,7 @@ async function main() {
     update: {},
     create: {
       email: "vendor1@techsupply.com",
-      passwordHash: "$2b$12$placeholder_vendor1_hash",
+      passwordHash: "$2b$10$7LCF5MOe2ILtr049h2Op/uFVSPhAmIKvNBtytSichM.MT38MTUiFm",
       firstName: "Amit",
       lastName: "Kumar",
       role: UserRole.VENDOR,
@@ -68,7 +68,7 @@ async function main() {
     update: {},
     create: {
       email: "vendor2@logistics.com",
-      passwordHash: "$2b$12$placeholder_vendor2_hash",
+      passwordHash: "$2b$10$7LCF5MOe2ILtr049h2Op/uFVSPhAmIKvNBtytSichM.MT38MTUiFm",
       firstName: "Sneha",
       lastName: "Reddy",
       role: UserRole.VENDOR,
