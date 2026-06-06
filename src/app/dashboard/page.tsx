@@ -569,7 +569,7 @@ export default function DashboardPage() {
                 New RFQ
               </Button>
             </Link>
-            <Link href="/vendors/new">
+            <Link href="/vendors">
               <Button
                 variant="outline"
                 size="lg"
