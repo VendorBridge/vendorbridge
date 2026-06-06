@@ -11,6 +11,7 @@ import { EyeBall, Pupil } from "@/components/ui/animated-eyes";
 import { Eye, EyeOff, Mail, Sparkles, AlertCircle, Clock, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 import { loginAction } from "./actions";
 import type { LoginError } from "./actions";
 
@@ -181,9 +182,13 @@ export default function LoginPage() {
 
         {/* VendorBridge logo */}
         <div className="relative z-20 flex items-center gap-3">
-          <div className="size-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center shadow-lg">
-            <Sparkles className="size-5 text-white" />
-          </div>
+          <Image
+            src="/logos/logo.png"
+            alt="VendorBridge Logo"
+            width={40}
+            height={40}
+            className="rounded-lg shadow-lg"
+          />
           <div>
             <span className="text-xl font-bold tracking-tight">VendorBridge</span>
             <p className="text-xs text-white/60 font-medium">Procurement & Vendor ERP</p>
@@ -342,10 +347,13 @@ export default function LoginPage() {
 
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center gap-2 mb-10">
-            <div className="size-9 rounded-xl flex items-center justify-center"
-              style={{ background: "hsl(var(--primary))" }}>
-              <Sparkles className="size-4 text-white" />
-            </div>
+            <Image
+              src="/logos/logo.png"
+              alt="VendorBridge Logo"
+              width={36}
+              height={36}
+              className="rounded-lg shadow-lg"
+            />
             <span className="text-xl font-bold text-[hsl(var(--foreground))]">VendorBridge</span>
           </div>
 

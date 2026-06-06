@@ -3,7 +3,11 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+<<<<<<< Updated upstream
 import Link from "next/link";
+=======
+import Image from "next/image";
+>>>>>>> Stashed changes
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -372,9 +376,13 @@ export default function RegisterPage() {
       >
         {/* Brand Logo header */}
         <div className="relative z-20 flex items-center gap-3">
-          <div className="size-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center shadow-lg">
-            <Sparkles className="size-5 text-white" />
-          </div>
+          <Image
+            src="/logos/logo.png"
+            alt="VendorBridge Logo"
+            width={40}
+            height={40}
+            className="rounded-lg shadow-lg"
+          />
           <div>
             <span className="text-xl font-bold tracking-tight">VendorBridge</span>
             <p className="text-xs text-white/60 font-medium">Procurement & Vendor ERP</p>

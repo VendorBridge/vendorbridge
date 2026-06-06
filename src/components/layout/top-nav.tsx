@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, Bell, Sun, Moon, LogOut, Search } from "lucide-react";
+import { Bell, Sun, Moon, LogOut, Search } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -50,15 +50,13 @@ export function TopNav() {
     >
       {/* Left: Logo */}
       <div className="flex items-center gap-3">
-        <div
-          className="size-9 rounded-xl flex items-center justify-center shadow-lg"
-          style={{
-            background:
-              "linear-gradient(135deg, hsl(249,82%,50%) 0%, hsl(262,80%,55%) 100%)",
-          }}
-        >
-          <Sparkles className="size-4 text-white" />
-        </div>
+        <img
+          src="/logos/logo.png"
+          alt="VendorBridge Logo"
+          width={36}
+          height={36}
+          className="rounded-lg shadow-lg"
+        />
         <div>
           <span className="text-lg font-bold tracking-tight text-[hsl(var(--foreground))]">
             VendorBridge

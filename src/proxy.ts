@@ -1,27 +1,27 @@
-// import { auth } from "@/lib/auth";
-// import { ROLE_REDIRECTS } from "@/lib/auth";
+import { auth } from "@/lib/auth";
+import { ROLE_REDIRECTS } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // ─────────────────────────────────────────────────────
 // Route configuration
 // ─────────────────────────────────────────────────────
-// const PROTECTED_PREFIXES = [
-//   "/dashboard",
-//   "/rfqs",
-//   "/approvals",
-//   "/quotations",
-//   "/vendors",
-//   "/invoices",
-//   "/reports",
-// ];
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/rfqs",
+  "/approvals",
+  "/quotations",
+  "/vendors",
+  "/invoices",
+  "/reports",
+];
 
-// const PUBLIC_ROUTES = [
-//   "/login",
-//   "/register",
-//   "/forgot-password",
-//   "/reset-password",
-// ];
+const PUBLIC_ROUTES = [
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+];
 
 // ─────────────────────────────────────────────────────
 // TEMPORARY: Auth middleware disabled for development.

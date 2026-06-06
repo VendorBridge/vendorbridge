@@ -30,9 +30,13 @@ export function Navbar() {
     >
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-10">
         <Link href="/" className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#6C3FF5] text-sm font-bold text-white">
-            V
-          </span>
+          <img
+            src="/logos/logo.png"
+            alt="VendorBridge Logo"
+            width={32}
+            height={32}
+            className="rounded-lg shadow-lg"
+          />
           <span className="font-[family-name:var(--font-jakarta)] text-lg font-bold tracking-tight text-white">
             VendorBridge
           </span>
