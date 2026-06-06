@@ -1,374 +1,567 @@
-// ==========================================================
-// VendorBridge — Prisma Schema (PostgreSQL / Neon)
-// ==========================================================
-// Best-practice conventions applied:
-//   • DB URL sourced from environment variable (never hardcoded)
-//   • All models use @@map for snake_case table names
-//   • All fields use @map for snake_case column names where needed
-//   • Indexes on every foreign key + frequently queried columns
-//   • Decimal(12,2) for all monetary values (no float rounding)
-//   • Soft-delete (deletedAt) on core entities
-//   • Session model for secure auth (no JWT-only reliance)
-//   • Notification model for real-time vendor/user alerts
-//   • Full audit-trail logging with entity references
-// ==========================================================
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+model User {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName         String     @map("first_name") @db.VarChar(100)
+  lastName          String     @map("last_name") @db.VarChar(100)
+  email             String     @unique @db.Citext
+  phone             String?    @db.VarChar(30)
+  passwordHash      String     @map("password_hash")
+  role              UserRole   @default(PROCUREMENT_OFFICER)
+  status            UserStatus @default(ACTIVE)
+  country           String?    @db.VarChar(100)
+  additionalInfo    String?    @map("additional_info")
+  avatarUrl         String?    @map("avatar_url")
+  lastLoginAt       DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  emailVerified     Boolean    @default(false) @map("email_verified")
+  emailVerifyToken  String?    @map("email_verify_token")
+  resetToken        String?    @map("reset_token")
+  resetTokenExpires DateTime?  @map("reset_token_expires") @db.Timestamptz(6)
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([email], map: "idx_users_email")
+  @@index([role], map: "idx_users_role")
+  @@index([status], map: "idx_users_status")
+  @@map("users")
 }
 
-// ==========================================
-// ENUMS
-// ==========================================
+model Vendor {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyName   String         @map("company_name") @db.VarChar(200)
+  category      VendorCategory @default(OTHER)
+  status        VendorStatus   @default(PENDING_VERIFICATION)
+  contactName   String?        @map("contact_name") @db.VarChar(200)
+  contactEmail  String?        @map("contact_email") @db.Citext
+  contactPhone  String?        @map("contact_phone") @db.VarChar(30)
+  website       String?        @db.VarChar(300)
+  addressLine1  String?        @map("address_line1") @db.VarChar(300)
+  addressLine2  String?        @map("address_line2") @db.VarChar(300)
+  city          String?        @db.VarChar(100)
+  state         String?        @db.VarChar(100)
+  country       String?        @db.VarChar(100)
+  pincode       String?        @db.VarChar(20)
+  gstNumber     String?        @map("gst_number") @db.VarChar(20)
+  panNumber     String?        @map("pan_number") @db.VarChar(20)
+  bankName      String?        @map("bank_name") @db.VarChar(200)
+  bankAccountNo String?        @map("bank_account_no") @db.VarChar(50)
+  bankIfsc      String?        @map("bank_ifsc") @db.VarChar(20)
+  rating        Decimal?       @default(0.00) @db.Decimal(3, 2)
+  totalPos      Int            @default(0) @map("total_pos")
+  totalSpend    Decimal        @default(0.00) @map("total_spend") @db.Decimal(15, 2)
+  userId        String?        @map("user_id") @db.Uuid
+  notes         String?
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([category], map: "idx_vendors_category")
+  @@index([status], map: "idx_vendors_status")
+  @@index([userId], map: "idx_vendors_user")
+  @@map("vendors")
+}
+
+model Rfq {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rfqNumber        String    @unique @map("rfq_number") @db.VarChar(50)
+  title            String    @db.VarChar(300)
+  description      String?
+  status           RfqStatus @default(DRAFT)
+  deadline         DateTime  @db.Date
+  publishedAt      DateTime? @map("published_at") @db.Timestamptz(6)
+  closedAt         DateTime? @map("closed_at") @db.Timestamptz(6)
+  createdBy        String    @map("created_by") @db.Uuid
+  expectedDelivery DateTime? @map("expected_delivery") @db.Date
+  deliveryLocation String?   @map("delivery_location") @db.VarChar(300)
+  paymentTerms     String?   @map("payment_terms") @db.VarChar(200)
+  specialNotes     String?   @map("special_notes")
+  quotationCount   Int       @default(0) @map("quotation_count")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([createdBy], map: "idx_rfqs_created_by")
+  @@index([deadline], map: "idx_rfqs_deadline")
+  @@index([status], map: "idx_rfqs_status")
+  @@map("rfqs")
+}
+
+model RfqItem {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rfqId              String   @map("rfq_id") @db.Uuid
+  itemName           String   @map("item_name") @db.VarChar(300)
+  description        String?
+  quantity           Decimal  @default(1) @db.Decimal(12, 3)
+  unit               String?  @db.VarChar(50)
+  estimatedUnitPrice Decimal? @map("estimated_unit_price") @db.Decimal(12, 2)
+  specifications     String?
+  sortOrder          Int      @default(0) @map("sort_order")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([rfqId], map: "idx_rfq_items_rfq")
+  @@map("rfq_items")
+}
+
+model RfqAttachment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rfqId      String   @map("rfq_id") @db.Uuid
+  fileName   String   @map("file_name") @db.VarChar(300)
+  fileUrl    String   @map("file_url")
+  fileSize   Int?     @map("file_size")
+  mimeType   String?  @map("mime_type") @db.VarChar(100)
+  uploadedBy String   @map("uploaded_by") @db.Uuid
+  uploadedAt DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+
+  @@index([rfqId], map: "idx_rfq_attachments_rfq")
+  @@map("rfq_attachments")
+}
+
+model RfqVendor {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rfqId     String    @map("rfq_id") @db.Uuid
+  vendorId  String    @map("vendor_id") @db.Uuid
+  invitedAt DateTime  @default(now()) @map("invited_at") @db.Timestamptz(6)
+  viewedAt  DateTime? @map("viewed_at") @db.Timestamptz(6)
+
+  @@unique([rfqId, vendorId])
+  @@index([rfqId], map: "idx_rfq_vendors_rfq")
+  @@index([vendorId], map: "idx_rfq_vendors_vendor")
+  @@map("rfq_vendors")
+}
+
+model Quotation {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotationNumber String          @unique @map("quotation_number") @db.VarChar(50)
+  rfqId           String          @map("rfq_id") @db.Uuid
+  vendorId        String          @map("vendor_id") @db.Uuid
+  status          QuotationStatus @default(DRAFT)
+  subtotal        Decimal         @default(0.00) @db.Decimal(15, 2)
+  discountPct     Decimal         @default(0.00) @map("discount_pct") @db.Decimal(5, 2)
+  discountAmount  Decimal         @default(0.00) @map("discount_amount") @db.Decimal(15, 2)
+  taxPct          Decimal         @default(18.00) @map("tax_pct") @db.Decimal(5, 2)
+  taxAmount       Decimal         @default(0.00) @map("tax_amount") @db.Decimal(15, 2)
+  grandTotal      Decimal         @default(0.00) @map("grand_total") @db.Decimal(15, 2)
+  deliveryDays    Int?            @map("delivery_days")
+  deliveryDate    DateTime?       @map("delivery_date") @db.Date
+  deliveryTerms   String?         @map("delivery_terms") @db.VarChar(200)
+  paymentTerms    String?         @map("payment_terms") @db.VarChar(200)
+  validUntil      DateTime?       @map("valid_until") @db.Date
+  vendorNotes     String?         @map("vendor_notes")
+  internalNotes   String?         @map("internal_notes")
+  isShortlisted   Boolean         @default(false) @map("is_shortlisted")
+  isLowestPrice   Boolean         @default(false) @map("is_lowest_price")
+  submittedAt     DateTime?       @map("submitted_at") @db.Timestamptz(6)
+  submittedBy     String?         @map("submitted_by") @db.Uuid
+  revision        Int             @default(1)
+  parentId        String?         @map("parent_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([rfqId, vendorId, revision])
+  @@index([rfqId], map: "idx_quotations_rfq")
+  @@index([status], map: "idx_quotations_status")
+  @@index([vendorId], map: "idx_quotations_vendor")
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotationId    String   @map("quotation_id") @db.Uuid
+  rfqItemId      String?  @map("rfq_item_id") @db.Uuid
+  itemName       String   @map("item_name") @db.VarChar(300)
+  description    String?
+  quantity       Decimal  @default(1) @db.Decimal(12, 3)
+  unit           String?  @db.VarChar(50)
+  unitPrice      Decimal  @default(0.00) @map("unit_price") @db.Decimal(12, 2)
+  lineTotal      Decimal? @default(dbgenerated("(quantity * unit_price)")) @map("line_total") @db.Decimal(15, 2)
+  specifications String?
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([quotationId], map: "idx_quotation_items_quotation")
+  @@index([rfqItemId], map: "idx_quotation_items_rfq_item")
+  @@map("quotation_items")
+}
+
+model QuotationAttachment {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotationId String   @map("quotation_id") @db.Uuid
+  fileName    String   @map("file_name") @db.VarChar(300)
+  fileUrl     String   @map("file_url")
+  fileSize    Int?     @map("file_size")
+  mimeType    String?  @map("mime_type") @db.VarChar(100)
+  uploadedAt  DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+
+  @@index([quotationId], map: "idx_quotation_attachments_q")
+  @@map("quotation_attachments")
+}
+
+model Approval {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotationId String         @map("quotation_id") @db.Uuid
+  rfqId       String         @map("rfq_id") @db.Uuid
+  vendorId    String         @map("vendor_id") @db.Uuid
+  status      ApprovalStatus @default(PENDING)
+  requestedBy String         @map("requested_by") @db.Uuid
+  assignedTo  String?        @map("assigned_to") @db.Uuid
+  decisionBy  String?        @map("decision_by") @db.Uuid
+  decisionAt  DateTime?      @map("decision_at") @db.Timestamptz(6)
+  remarks     String?
+  timeline    Json           @default("[]")
+  priority    String         @default("NORMAL") @db.VarChar(20)
+  dueDate     DateTime?      @map("due_date") @db.Date
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([quotationId], map: "idx_approvals_quotation")
+  @@map("approvals")
+}
+
+model PurchaseOrder {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  poNumber         String    @unique @map("po_number") @db.VarChar(50)
+  quotationId      String    @map("quotation_id") @db.Uuid
+  rfqId            String    @map("rfq_id") @db.Uuid
+  vendorId         String    @map("vendor_id") @db.Uuid
+  approvalId       String?   @map("approval_id") @db.Uuid
+  status           PoStatus  @default(DRAFT)
+  poDate           DateTime  @default(dbgenerated("CURRENT_DATE")) @map("po_date") @db.Date
+  expectedDelivery DateTime? @map("expected_delivery") @db.Date
+  acknowledgedAt   DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  billToName       String?   @map("bill_to_name") @db.VarChar(200)
+  billToAddress    String?   @map("bill_to_address")
+  billToGstin      String?   @map("bill_to_gstin") @db.VarChar(20)
+  shipToName       String?   @map("ship_to_name") @db.VarChar(200)
+  shipToAddress    String?   @map("ship_to_address")
+  subtotal         Decimal   @default(0.00) @db.Decimal(15, 2)
+  discountAmount   Decimal   @default(0.00) @map("discount_amount") @db.Decimal(15, 2)
+  taxPct           Decimal   @default(18.00) @map("tax_pct") @db.Decimal(5, 2)
+  taxAmount        Decimal   @default(0.00) @map("tax_amount") @db.Decimal(15, 2)
+  grandTotal       Decimal   @default(0.00) @map("grand_total") @db.Decimal(15, 2)
+  paymentTerms     String?   @map("payment_terms") @db.VarChar(200)
+  deliveryTerms    String?   @map("delivery_terms") @db.VarChar(200)
+  specialNotes     String?   @map("special_notes")
+  createdBy        String    @map("created_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([createdBy], map: "idx_po_created_by")
+  @@index([quotationId], map: "idx_po_quotation")
+  @@index([rfqId], map: "idx_po_rfq")
+  @@index([status], map: "idx_po_status")
+  @@index([vendorId], map: "idx_po_vendor")
+  @@map("purchase_orders")
+}
+
+model PoItem {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  poId            String   @map("po_id") @db.Uuid
+  quotationItemId String?  @map("quotation_item_id") @db.Uuid
+  itemName        String   @map("item_name") @db.VarChar(300)
+  description     String?
+  quantity        Decimal  @default(1) @db.Decimal(12, 3)
+  unit            String?  @db.VarChar(50)
+  unitPrice       Decimal  @default(0.00) @map("unit_price") @db.Decimal(12, 2)
+  lineTotal       Decimal? @default(dbgenerated("(quantity * unit_price)")) @map("line_total") @db.Decimal(15, 2)
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([poId], map: "idx_po_items_po")
+  @@map("po_items")
+}
+
+model Invoice {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceNumber     String        @unique @map("invoice_number") @db.VarChar(50)
+  poId              String        @map("po_id") @db.Uuid
+  vendorId          String        @map("vendor_id") @db.Uuid
+  rfqId             String        @map("rfq_id") @db.Uuid
+  status            InvoiceStatus @default(DRAFT)
+  invoiceDate       DateTime      @default(dbgenerated("CURRENT_DATE")) @map("invoice_date") @db.Date
+  dueDate           DateTime?     @map("due_date") @db.Date
+  paidAt            DateTime?     @map("paid_at") @db.Timestamptz(6)
+  subtotal          Decimal       @default(0.00) @db.Decimal(15, 2)
+  discountAmount    Decimal       @default(0.00) @map("discount_amount") @db.Decimal(15, 2)
+  taxPct            Decimal       @default(18.00) @map("tax_pct") @db.Decimal(5, 2)
+  taxAmount         Decimal       @default(0.00) @map("tax_amount") @db.Decimal(15, 2)
+  grandTotal        Decimal       @default(0.00) @map("grand_total") @db.Decimal(15, 2)
+  paymentTerms      String?       @map("payment_terms") @db.VarChar(200)
+  paymentMethod     String?       @map("payment_method") @db.VarChar(100)
+  paymentReference  String?       @map("payment_reference") @db.VarChar(200)
+  billedFromName    String?       @map("billed_from_name") @db.VarChar(200)
+  billedFromAddress String?       @map("billed_from_address")
+  billedFromGstin   String?       @map("billed_from_gstin") @db.VarChar(20)
+  billedToName      String?       @map("billed_to_name") @db.VarChar(200)
+  billedToAddress   String?       @map("billed_to_address")
+  billedToGstin     String?       @map("billed_to_gstin") @db.VarChar(20)
+  pdfUrl            String?       @map("pdf_url")
+  emailSentTo       String?       @map("email_sent_to")
+  emailSentAt       DateTime?     @map("email_sent_at") @db.Timestamptz(6)
+  printedAt         DateTime?     @map("printed_at") @db.Timestamptz(6)
+  notes             String?
+  createdBy         String        @map("created_by") @db.Uuid
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([dueDate], map: "idx_invoices_due")
+  @@index([poId], map: "idx_invoices_po")
+  @@index([status], map: "idx_invoices_status")
+  @@index([vendorId], map: "idx_invoices_vendor")
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId    String   @map("invoice_id") @db.Uuid
+  poItemId     String?  @map("po_item_id") @db.Uuid
+  itemName     String   @map("item_name") @db.VarChar(300)
+  description  String?
+  quantity     Decimal  @default(1) @db.Decimal(12, 3)
+  unit         String?  @db.VarChar(50)
+  unitPrice    Decimal  @default(0.00) @map("unit_price") @db.Decimal(12, 2)
+  taxPct       Decimal  @default(18.00) @map("tax_pct") @db.Decimal(5, 2)
+  lineSubtotal Decimal? @default(dbgenerated("(quantity * unit_price)")) @map("line_subtotal") @db.Decimal(15, 2)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([invoiceId], map: "idx_invoice_items_invoice")
+  @@map("invoice_items")
+}
+
+model ActivityLog {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityType  ActivityEntity @map("entity_type")
+  entityId    String         @map("entity_id") @db.Uuid
+  action      ActivityAction
+  actorId     String?        @map("actor_id") @db.Uuid
+  actorName   String?        @map("actor_name") @db.VarChar(200)
+  description String
+  oldValue    Json?          @map("old_value")
+  newValue    Json?          @map("new_value")
+  metadata    Json?
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([action], map: "idx_activity_action")
+  @@index([actorId], map: "idx_activity_actor")
+  @@index([createdAt(sort: Desc)], map: "idx_activity_created")
+  @@index([entityType, entityId], map: "idx_activity_entity")
+  @@map("activity_logs")
+}
+
+model Notification {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String           @map("user_id") @db.Uuid
+  type       NotificationType
+  title      String           @db.VarChar(300)
+  message    String
+  entityType ActivityEntity?  @map("entity_type")
+  entityId   String?          @map("entity_id") @db.Uuid
+  isRead     Boolean          @default(false) @map("is_read")
+  readAt     DateTime?        @map("read_at") @db.Timestamptz(6)
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)], map: "idx_notifications_created")
+  @@index([userId], map: "idx_notifications_user")
+  @@map("notifications")
+}
+
+model VendorRating {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vendorId      String   @map("vendor_id") @db.Uuid
+  poId          String   @map("po_id") @db.Uuid
+  ratedBy       String   @map("rated_by") @db.Uuid
+  score         Decimal  @db.Decimal(3, 2)
+  quality       Decimal? @db.Decimal(3, 2)
+  delivery      Decimal? @db.Decimal(3, 2)
+  communication Decimal? @db.Decimal(3, 2)
+  comment       String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([vendorId, poId])
+  @@index([vendorId], map: "idx_ratings_vendor")
+  @@map("vendor_ratings")
+}
+
+model MonthlyProcurementStat {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  year             Int
+  month            Int
+  totalRfqs        Int             @default(0) @map("total_rfqs")
+  totalQuotations  Int             @default(0) @map("total_quotations")
+  totalPos         Int             @default(0) @map("total_pos")
+  totalInvoices    Int             @default(0) @map("total_invoices")
+  totalSpend       Decimal         @default(0.00) @map("total_spend") @db.Decimal(15, 2)
+  pendingApprovals Int             @default(0) @map("pending_approvals")
+  approvedCount    Int             @default(0) @map("approved_count")
+  rejectedCount    Int             @default(0) @map("rejected_count")
+  avgVendorRating  Decimal?        @map("avg_vendor_rating") @db.Decimal(3, 2)
+  topVendorId      String?         @map("top_vendor_id") @db.Uuid
+  topCategory      VendorCategory? @map("top_category")
+  computedAt       DateTime        @default(now()) @map("computed_at") @db.Timestamptz(6)
+
+  @@unique([year, month])
+  @@map("monthly_procurement_stats")
+}
+
+model CategorySpendStat {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  year       Int
+  month      Int
+  category   VendorCategory
+  totalSpend Decimal        @default(0.00) @map("total_spend") @db.Decimal(15, 2)
+  poCount    Int            @default(0) @map("po_count")
+  computedAt DateTime       @default(now()) @map("computed_at") @db.Timestamptz(6)
+
+  @@unique([year, month, category])
+  @@map("category_spend_stats")
+}
 
 enum UserRole {
   ADMIN
   PROCUREMENT_OFFICER
-  MANAGER
   VENDOR
+  MANAGER
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+
+  @@map("user_status")
 }
 
 enum VendorStatus {
-  PENDING_VERIFICATION
   ACTIVE
-  SUSPENDED
+  INACTIVE
+  PENDING_VERIFICATION
   BLACKLISTED
+
+  @@map("vendor_status")
+}
+
+enum VendorCategory {
+  IT_HARDWARE
+  IT_SOFTWARE
+  FURNITURE
+  STATIONERY
+  LOGISTICS
+  FACILITY
+  MARKETING
+  FINANCE
+  OTHER
+
+  @@map("vendor_category")
 }
 
 enum RfqStatus {
   DRAFT
-  OPEN
-  EVALUATION
-  APPROVED
-  REJECTED
-  COMPLETED
+  PUBLISHED
+  CLOSED
   CANCELLED
+  AWARDED
+
+  @@map("rfq_status")
 }
 
 enum QuotationStatus {
+  DRAFT
   SUBMITTED
-  REVISED
-  ACCEPTED
+  UNDER_REVIEW
+  SHORTLISTED
   REJECTED
-  WITHDRAWN
+  ACCEPTED
+
+  @@map("quotation_status")
 }
 
 enum ApprovalStatus {
   PENDING
   APPROVED
   REJECTED
+  ESCALATED
+
+  @@map("approval_status")
 }
 
-enum DocStatus {
+enum PoStatus {
   DRAFT
   ISSUED
-  PARTIALLY_PAID
+  ACKNOWLEDGED
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CANCELLED
+
+  @@map("po_status")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+
+  @@map("invoice_status")
+}
+
+enum ActivityEntity {
+  USER
+  VENDOR
+  RFQ
+  QUOTATION
+  APPROVAL
+  PURCHASE_ORDER
+  INVOICE
+
+  @@map("activity_entity")
+}
+
+enum ActivityAction {
+  CREATED
+  UPDATED
+  DELETED
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PUBLISHED
+  CLOSED
+  AWARDED
+  GENERATED
+  SENT
   PAID
   CANCELLED
-  OVERDUE
+  SHORTLISTED
+  ACKNOWLEDGED
+  LOGIN
+  LOGOUT
+
+  @@map("activity_action")
 }
 
 enum NotificationType {
-  RFQ_INVITATION
+  RFQ_PUBLISHED
+  RFQ_CLOSED
   QUOTATION_RECEIVED
-  APPROVAL_REQUIRED
-  APPROVAL_DECISION
+  QUOTATION_SHORTLISTED
+  QUOTATION_REJECTED
+  APPROVAL_REQUESTED
+  APPROVAL_GRANTED
+  APPROVAL_REJECTED
   PO_ISSUED
-  INVOICE_GENERATED
+  PO_ACKNOWLEDGED
+  INVOICE_ISSUED
+  INVOICE_PAID
+  INVOICE_OVERDUE
   SYSTEM
-}
 
-// ==========================================
-// 1. AUTHENTICATION & USER MANAGEMENT
-// ==========================================
-
-model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  passwordHash  String    @map("password_hash")
-  name          String
-  role          UserRole  @default(PROCUREMENT_OFFICER)
-  isActive      Boolean   @default(true) @map("is_active")
-  lastLoginAt   DateTime? @map("last_login_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  deletedAt     DateTime? @map("deleted_at")
-
-  // Relations
-  vendorProfile Vendor?        @relation("VendorUser")
-  sessions      Session[]
-  createdRfqs   Rfq[]          @relation("RfqCreator")
-  approvals     Approval[]     @relation("Approver")
-  activityLogs  ActivityLog[]
-  notifications Notification[]
-
-  @@index([email])
-  @@index([role])
-  @@map("users")
-}
-
-model Session {
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  token        String   @unique
-  expiresAt    DateTime @map("expires_at")
-  ipAddress    String?  @map("ip_address")
-  userAgent    String?  @map("user_agent")
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([token])
-  @@index([expiresAt])
-  @@map("sessions")
-}
-
-// ==========================================
-// 2. VENDOR DIRECTORY
-// ==========================================
-
-model Vendor {
-  id           String       @id @default(uuid())
-  userId       String?      @unique @map("user_id")
-  companyName  String       @map("company_name")
-  category     String       // e.g., Logistics, IT Hardware, Raw Materials
-  gstNumber    String       @unique @map("gst_number")
-  email        String       @unique
-  phone        String
-  address      String
-  city         String?
-  state        String?
-  pincode      String?
-  status       VendorStatus @default(PENDING_VERIFICATION)
-  rating       Float        @default(5.0)
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-
-  // Relations
-  user        User?        @relation("VendorUser", fields: [userId], references: [id], onDelete: SetNull)
-  quotations  Quotation[]
-  rfqInvited  Rfq[]        @relation("RfqVendors")
-
-  @@index([category])
-  @@index([status])
-  @@index([rating])
-  @@index([gstNumber])
-  @@map("vendors")
-}
-
-// ==========================================
-// 3. REQUEST FOR QUOTE (RFQ)
-// ==========================================
-
-model Rfq {
-  id          String    @id @default(uuid())
-  rfqNumber   String    @unique @map("rfq_number")
-  title       String
-  description String?
-  deadline    DateTime
-  status      RfqStatus @default(DRAFT)
-  creatorId   String    @map("creator_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
-
-  // Relations
-  creator        User        @relation("RfqCreator", fields: [creatorId], references: [id])
-  items          RfqItem[]
-  invitedVendors Vendor[]    @relation("RfqVendors")
-  quotations     Quotation[]
-  approval       Approval?
-
-  @@index([creatorId])
-  @@index([status])
-  @@index([deadline])
-  @@index([rfqNumber])
-  @@map("rfqs")
-}
-
-model RfqItem {
-  id          String   @id @default(uuid())
-  rfqId       String   @map("rfq_id")
-  productName String   @map("product_name")
-  quantity    Int
-  unit        String   // e.g., Kgs, Units, Hours
-  description String?
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  // Relations
-  rfq Rfq @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-
-  @@index([rfqId])
-  @@map("rfq_items")
-}
-
-// ==========================================
-// 4. VENDOR QUOTATION BIDDING
-// ==========================================
-
-model Quotation {
-  id               String          @id @default(uuid())
-  rfqId            String          @map("rfq_id")
-  vendorId         String          @map("vendor_id")
-  totalAmount      Decimal?        @db.Decimal(12, 2) @map("total_amount")
-  deliveryTimeline Int             @map("delivery_timeline") // Calendar days
-  notes            String?
-  status           QuotationStatus @default(SUBMITTED)
-  submittedAt      DateTime        @default(now()) @map("submitted_at")
-  createdAt        DateTime        @default(now()) @map("created_at")
-  updatedAt        DateTime        @updatedAt @map("updated_at")
-
-  // Relations
-  rfq            Rfq             @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  vendor         Vendor          @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  items          QuotationItem[]
-  purchaseOrders PurchaseOrder[]
-
-  @@unique([rfqId, vendorId]) // One bid per vendor per RFQ
-  @@index([rfqId])
-  @@index([vendorId])
-  @@index([status])
-  @@map("quotations")
-}
-
-model QuotationItem {
-  id          String  @id @default(uuid())
-  quotationId String  @map("quotation_id")
-  productName String  @map("product_name")
-  quantity    Int
-  unitPrice   Decimal @db.Decimal(12, 2) @map("unit_price")
-  totalPrice  Decimal @db.Decimal(12, 2) @map("total_price")
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  // Relations
-  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-
-  @@index([quotationId])
-  @@map("quotation_items")
-}
-
-// ==========================================
-// 5. GOVERNANCE & APPROVAL ENGINE
-// ==========================================
-
-model Approval {
-  id         String         @id @default(uuid())
-  rfqId      String         @unique @map("rfq_id")
-  managerId  String?        @map("manager_id")
-  status     ApprovalStatus @default(PENDING)
-  remarks    String?
-  decidedAt  DateTime?      @map("decided_at")
-  createdAt  DateTime       @default(now()) @map("created_at")
-  updatedAt  DateTime       @updatedAt @map("updated_at")
-
-  // Relations
-  rfq     Rfq   @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  manager User? @relation("Approver", fields: [managerId], references: [id], onDelete: SetNull)
-
-  @@index([managerId])
-  @@index([status])
-  @@map("approvals")
-}
-
-// ==========================================
-// 6. PURCHASE ORDERS & INVOICING
-// ==========================================
-
-model PurchaseOrder {
-  id          String    @id @default(uuid())
-  poNumber    String    @unique @map("po_number")
-  quotationId String    @map("quotation_id")
-  totalAmount Decimal   @db.Decimal(12, 2) @map("total_amount")
-  status      DocStatus @default(ISSUED)
-  issuedAt    DateTime  @default(now()) @map("issued_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  quotation Quotation @relation(fields: [quotationId], references: [id])
-  invoices  Invoice[]
-
-  @@index([quotationId])
-  @@index([status])
-  @@index([poNumber])
-  @@map("purchase_orders")
-}
-
-model Invoice {
-  id              String    @id @default(uuid())
-  invoiceNumber   String    @unique @map("invoice_number")
-  purchaseOrderId String    @map("purchase_order_id")
-  subTotal        Decimal   @db.Decimal(12, 2) @map("sub_total")
-  taxPercent      Decimal   @default(18.0) @db.Decimal(5, 2) @map("tax_percent")
-  taxAmount       Decimal   @db.Decimal(12, 2) @map("tax_amount")
-  totalAmount     Decimal   @db.Decimal(12, 2) @map("total_amount")
-  dueDate         DateTime? @map("due_date")
-  paidAt          DateTime? @map("paid_at")
-  status          DocStatus @default(ISSUED)
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
-
-  @@index([purchaseOrderId])
-  @@index([status])
-  @@index([invoiceNumber])
-  @@index([dueDate])
-  @@map("invoices")
-}
-
-// ==========================================
-// 7. NOTIFICATIONS
-// ==========================================
-
-model Notification {
-  id        String           @id @default(uuid())
-  userId    String           @map("user_id")
-  type      NotificationType
-  title     String
-  message   String
-  isRead    Boolean          @default(false) @map("is_read")
-  linkUrl   String?          @map("link_url")
-  createdAt DateTime         @default(now()) @map("created_at")
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, isRead])
-  @@index([userId, createdAt])
-  @@map("notifications")
-}
-
-// ==========================================
-// 8. AUDIT TRAIL LOGGING
-// ==========================================
-
-model ActivityLog {
-  id         String   @id @default(uuid())
-  userId     String?  @map("user_id")
-  action     String   // e.g., "RFQ_CREATED", "QUOTE_SUBMITTED", "PO_APPROVED"
-  entityType String?  @map("entity_type") // e.g., "RFQ", "QUOTATION", "PO"
-  entityId   String?  @map("entity_id")   // UUID of the affected entity
-  details    String
-  metadata   Json?    // Arbitrary JSON payload for extra context
-  ipAddress  String?  @map("ip_address")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  // Relations
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([action])
-  @@index([entityType, entityId])
-  @@index([createdAt])
-  @@map("activity_logs")
+  @@map("notification_type")
 }
