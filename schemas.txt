@@ -1,0 +1,406 @@
+CREATE SCHEMA "public";
+CREATE TYPE "user_role" AS ENUM('ADMIN', 'PROCUREMENT_OFFICER', 'VENDOR', 'MANAGER');
+CREATE TYPE "user_status" AS ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED');
+CREATE TYPE "vendor_status" AS ENUM('ACTIVE', 'INACTIVE', 'PENDING_VERIFICATION', 'BLACKLISTED');
+CREATE TYPE "vendor_category" AS ENUM('IT_HARDWARE', 'IT_SOFTWARE', 'FURNITURE', 'STATIONERY', 'LOGISTICS', 'FACILITY', 'MARKETING', 'FINANCE', 'OTHER');
+CREATE TYPE "rfq_status" AS ENUM('DRAFT', 'PUBLISHED', 'CLOSED', 'CANCELLED', 'AWARDED');
+CREATE TYPE "quotation_status" AS ENUM('DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'SHORTLISTED', 'REJECTED', 'ACCEPTED');
+CREATE TYPE "approval_status" AS ENUM('PENDING', 'APPROVED', 'REJECTED', 'ESCALATED');
+CREATE TYPE "po_status" AS ENUM('DRAFT', 'ISSUED', 'ACKNOWLEDGED', 'PARTIALLY_FULFILLED', 'FULFILLED', 'CANCELLED');
+CREATE TYPE "invoice_status" AS ENUM('DRAFT', 'ISSUED', 'SENT', 'PAID', 'OVERDUE', 'CANCELLED');
+CREATE TYPE "activity_entity" AS ENUM('USER', 'VENDOR', 'RFQ', 'QUOTATION', 'APPROVAL', 'PURCHASE_ORDER', 'INVOICE');
+CREATE TYPE "activity_action" AS ENUM('CREATED', 'UPDATED', 'DELETED', 'SUBMITTED', 'APPROVED', 'REJECTED', 'PUBLISHED', 'CLOSED', 'AWARDED', 'GENERATED', 'SENT', 'PAID', 'CANCELLED', 'SHORTLISTED', 'ACKNOWLEDGED', 'LOGIN', 'LOGOUT');
+CREATE TYPE "notification_type" AS ENUM('RFQ_PUBLISHED', 'RFQ_CLOSED', 'QUOTATION_RECEIVED', 'QUOTATION_SHORTLISTED', 'QUOTATION_REJECTED', 'APPROVAL_REQUESTED', 'APPROVAL_GRANTED', 'APPROVAL_REJECTED', 'PO_ISSUED', 'PO_ACKNOWLEDGED', 'INVOICE_ISSUED', 'INVOICE_PAID', 'INVOICE_OVERDUE', 'SYSTEM');
+CREATE TABLE "activity_logs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"entity_type" activity_entity NOT NULL,
+	"entity_id" uuid NOT NULL,
+	"action" activity_action NOT NULL,
+	"actor_id" uuid,
+	"actor_name" varchar(200),
+	"description" text NOT NULL,
+	"old_value" jsonb,
+	"new_value" jsonb,
+	"metadata" jsonb,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "approvals" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"quotation_id" uuid NOT NULL,
+	"rfq_id" uuid NOT NULL,
+	"vendor_id" uuid NOT NULL,
+	"status" approval_status DEFAULT 'PENDING' NOT NULL,
+	"requested_by" uuid NOT NULL,
+	"assigned_to" uuid,
+	"decision_by" uuid,
+	"decision_at" timestamp with time zone,
+	"remarks" text,
+	"timeline" jsonb DEFAULT '[]' NOT NULL,
+	"priority" varchar(20) DEFAULT 'NORMAL' NOT NULL,
+	"due_date" date,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "category_spend_stats" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"year" integer NOT NULL UNIQUE,
+	"month" integer NOT NULL UNIQUE,
+	"category" vendor_category NOT NULL UNIQUE,
+	"total_spend" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"po_count" integer DEFAULT 0 NOT NULL,
+	"computed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "category_spend_stats_year_month_category_key" UNIQUE("year","month","category"),
+	CONSTRAINT "category_spend_stats_month_check" CHECK (((month >= 1) AND (month <= 12)))
+);
+CREATE TABLE "invoice_items" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"invoice_id" uuid NOT NULL,
+	"po_item_id" uuid,
+	"item_name" varchar(300) NOT NULL,
+	"description" text,
+	"quantity" numeric(12, 3) DEFAULT '1' NOT NULL,
+	"unit" varchar(50),
+	"unit_price" numeric(12, 2) DEFAULT '0.00' NOT NULL,
+	"tax_pct" numeric(5, 2) DEFAULT '18.00' NOT NULL,
+	"line_subtotal" numeric(15, 2) GENERATED ALWAYS AS ((quantity * unit_price)) STORED,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "invoices" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"invoice_number" varchar(50) NOT NULL CONSTRAINT "invoices_invoice_number_key" UNIQUE,
+	"po_id" uuid NOT NULL,
+	"vendor_id" uuid NOT NULL,
+	"rfq_id" uuid NOT NULL,
+	"status" invoice_status DEFAULT 'DRAFT' NOT NULL,
+	"invoice_date" date DEFAULT CURRENT_DATE NOT NULL,
+	"due_date" date,
+	"paid_at" timestamp with time zone,
+	"subtotal" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"discount_amount" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"tax_pct" numeric(5, 2) DEFAULT '18.00' NOT NULL,
+	"tax_amount" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"grand_total" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"payment_terms" varchar(200),
+	"payment_method" varchar(100),
+	"payment_reference" varchar(200),
+	"billed_from_name" varchar(200),
+	"billed_from_address" text,
+	"billed_from_gstin" varchar(20),
+	"billed_to_name" varchar(200),
+	"billed_to_address" text,
+	"billed_to_gstin" varchar(20),
+	"pdf_url" text,
+	"email_sent_to" text,
+	"email_sent_at" timestamp with time zone,
+	"printed_at" timestamp with time zone,
+	"notes" text,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "monthly_procurement_stats" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"year" integer NOT NULL UNIQUE,
+	"month" integer NOT NULL UNIQUE,
+	"total_rfqs" integer DEFAULT 0 NOT NULL,
+	"total_quotations" integer DEFAULT 0 NOT NULL,
+	"total_pos" integer DEFAULT 0 NOT NULL,
+	"total_invoices" integer DEFAULT 0 NOT NULL,
+	"total_spend" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"pending_approvals" integer DEFAULT 0 NOT NULL,
+	"approved_count" integer DEFAULT 0 NOT NULL,
+	"rejected_count" integer DEFAULT 0 NOT NULL,
+	"avg_vendor_rating" numeric(3, 2),
+	"top_vendor_id" uuid,
+	"top_category" vendor_category,
+	"computed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "monthly_procurement_stats_year_month_key" UNIQUE("year","month"),
+	CONSTRAINT "monthly_procurement_stats_month_check" CHECK (((month >= 1) AND (month <= 12)))
+);
+CREATE TABLE "notifications" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"user_id" uuid NOT NULL,
+	"type" notification_type NOT NULL,
+	"title" varchar(300) NOT NULL,
+	"message" text NOT NULL,
+	"entity_type" activity_entity,
+	"entity_id" uuid,
+	"is_read" boolean DEFAULT false NOT NULL,
+	"read_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "po_items" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"po_id" uuid NOT NULL,
+	"quotation_item_id" uuid,
+	"item_name" varchar(300) NOT NULL,
+	"description" text,
+	"quantity" numeric(12, 3) DEFAULT '1' NOT NULL,
+	"unit" varchar(50),
+	"unit_price" numeric(12, 2) DEFAULT '0.00' NOT NULL,
+	"line_total" numeric(15, 2) GENERATED ALWAYS AS ((quantity * unit_price)) STORED,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "purchase_orders" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"po_number" varchar(50) NOT NULL CONSTRAINT "purchase_orders_po_number_key" UNIQUE,
+	"quotation_id" uuid NOT NULL,
+	"rfq_id" uuid NOT NULL,
+	"vendor_id" uuid NOT NULL,
+	"approval_id" uuid,
+	"status" po_status DEFAULT 'DRAFT' NOT NULL,
+	"po_date" date DEFAULT CURRENT_DATE NOT NULL,
+	"expected_delivery" date,
+	"acknowledged_at" timestamp with time zone,
+	"bill_to_name" varchar(200),
+	"bill_to_address" text,
+	"bill_to_gstin" varchar(20),
+	"ship_to_name" varchar(200),
+	"ship_to_address" text,
+	"subtotal" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"discount_amount" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"tax_pct" numeric(5, 2) DEFAULT '18.00' NOT NULL,
+	"tax_amount" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"grand_total" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"payment_terms" varchar(200),
+	"delivery_terms" varchar(200),
+	"special_notes" text,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "quotation_attachments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"quotation_id" uuid NOT NULL,
+	"file_name" varchar(300) NOT NULL,
+	"file_url" text NOT NULL,
+	"file_size" integer,
+	"mime_type" varchar(100),
+	"uploaded_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "quotation_items" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"quotation_id" uuid NOT NULL,
+	"rfq_item_id" uuid,
+	"item_name" varchar(300) NOT NULL,
+	"description" text,
+	"quantity" numeric(12, 3) DEFAULT '1' NOT NULL,
+	"unit" varchar(50),
+	"unit_price" numeric(12, 2) DEFAULT '0.00' NOT NULL,
+	"line_total" numeric(15, 2) GENERATED ALWAYS AS ((quantity * unit_price)) STORED,
+	"specifications" text,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "quotations" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"quotation_number" varchar(50) NOT NULL CONSTRAINT "quotations_quotation_number_key" UNIQUE,
+	"rfq_id" uuid NOT NULL UNIQUE,
+	"vendor_id" uuid NOT NULL UNIQUE,
+	"status" quotation_status DEFAULT 'DRAFT' NOT NULL,
+	"subtotal" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"discount_pct" numeric(5, 2) DEFAULT '0.00' NOT NULL,
+	"discount_amount" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"tax_pct" numeric(5, 2) DEFAULT '18.00' NOT NULL,
+	"tax_amount" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"grand_total" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"delivery_days" integer,
+	"delivery_date" date,
+	"delivery_terms" varchar(200),
+	"payment_terms" varchar(200),
+	"valid_until" date,
+	"vendor_notes" text,
+	"internal_notes" text,
+	"is_shortlisted" boolean DEFAULT false NOT NULL,
+	"is_lowest_price" boolean DEFAULT false NOT NULL,
+	"submitted_at" timestamp with time zone,
+	"submitted_by" uuid,
+	"revision" integer DEFAULT 1 NOT NULL UNIQUE,
+	"parent_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "quotations_rfq_id_vendor_id_revision_key" UNIQUE("rfq_id","vendor_id","revision")
+);
+CREATE TABLE "rfq_attachments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"rfq_id" uuid NOT NULL,
+	"file_name" varchar(300) NOT NULL,
+	"file_url" text NOT NULL,
+	"file_size" integer,
+	"mime_type" varchar(100),
+	"uploaded_by" uuid NOT NULL,
+	"uploaded_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "rfq_items" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"rfq_id" uuid NOT NULL,
+	"item_name" varchar(300) NOT NULL,
+	"description" text,
+	"quantity" numeric(12, 3) DEFAULT '1' NOT NULL,
+	"unit" varchar(50),
+	"estimated_unit_price" numeric(12, 2),
+	"specifications" text,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "rfq_vendors" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"rfq_id" uuid NOT NULL UNIQUE,
+	"vendor_id" uuid NOT NULL UNIQUE,
+	"invited_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"viewed_at" timestamp with time zone,
+	CONSTRAINT "rfq_vendors_rfq_id_vendor_id_key" UNIQUE("rfq_id","vendor_id")
+);
+CREATE TABLE "rfqs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"rfq_number" varchar(50) NOT NULL CONSTRAINT "rfqs_rfq_number_key" UNIQUE,
+	"title" varchar(300) NOT NULL,
+	"description" text,
+	"status" rfq_status DEFAULT 'DRAFT' NOT NULL,
+	"deadline" date NOT NULL,
+	"published_at" timestamp with time zone,
+	"closed_at" timestamp with time zone,
+	"created_by" uuid NOT NULL,
+	"expected_delivery" date,
+	"delivery_location" varchar(300),
+	"payment_terms" varchar(200),
+	"special_notes" text,
+	"quotation_count" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "users" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"first_name" varchar(100) NOT NULL,
+	"last_name" varchar(100) NOT NULL,
+	"email" citext NOT NULL CONSTRAINT "users_email_key" UNIQUE,
+	"phone" varchar(30),
+	"password_hash" text NOT NULL,
+	"role" user_role DEFAULT 'PROCUREMENT_OFFICER' NOT NULL,
+	"status" user_status DEFAULT 'ACTIVE' NOT NULL,
+	"country" varchar(100),
+	"additional_info" text,
+	"avatar_url" text,
+	"last_login_at" timestamp with time zone,
+	"email_verified" boolean DEFAULT false NOT NULL,
+	"email_verify_token" text,
+	"reset_token" text,
+	"reset_token_expires" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "vendor_ratings" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"vendor_id" uuid NOT NULL UNIQUE,
+	"po_id" uuid NOT NULL UNIQUE,
+	"rated_by" uuid NOT NULL,
+	"score" numeric(3, 2) NOT NULL,
+	"quality" numeric(3, 2),
+	"delivery" numeric(3, 2),
+	"communication" numeric(3, 2),
+	"comment" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "vendor_ratings_vendor_id_po_id_key" UNIQUE("vendor_id","po_id"),
+	CONSTRAINT "vendor_ratings_communication_check" CHECK (((communication >= (0)::numeric) AND (communication <= (5)::numeric))),
+	CONSTRAINT "vendor_ratings_delivery_check" CHECK (((delivery >= (0)::numeric) AND (delivery <= (5)::numeric))),
+	CONSTRAINT "vendor_ratings_quality_check" CHECK (((quality >= (0)::numeric) AND (quality <= (5)::numeric))),
+	CONSTRAINT "vendor_ratings_score_check" CHECK (((score >= (0)::numeric) AND (score <= (5)::numeric)))
+);
+CREATE TABLE "vendors" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"company_name" varchar(200) NOT NULL,
+	"category" vendor_category DEFAULT 'OTHER' NOT NULL,
+	"status" vendor_status DEFAULT 'PENDING_VERIFICATION' NOT NULL,
+	"contact_name" varchar(200),
+	"contact_email" citext,
+	"contact_phone" varchar(30),
+	"website" varchar(300),
+	"address_line1" varchar(300),
+	"address_line2" varchar(300),
+	"city" varchar(100),
+	"state" varchar(100),
+	"country" varchar(100),
+	"pincode" varchar(20),
+	"gst_number" varchar(20),
+	"pan_number" varchar(20),
+	"bank_name" varchar(200),
+	"bank_account_no" varchar(50),
+	"bank_ifsc" varchar(20),
+	"rating" numeric(3, 2) DEFAULT '0.00',
+	"total_pos" integer DEFAULT 0 NOT NULL,
+	"total_spend" numeric(15, 2) DEFAULT '0.00' NOT NULL,
+	"user_id" uuid,
+	"notes" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX "activity_logs_pkey" ON "activity_logs" ("id");
+CREATE INDEX "idx_activity_action" ON "activity_logs" ("action");
+CREATE INDEX "idx_activity_actor" ON "activity_logs" ("actor_id");
+CREATE INDEX "idx_activity_created" ON "activity_logs" ("created_at");
+CREATE INDEX "idx_activity_entity" ON "activity_logs" ("entity_type","entity_id");
+CREATE UNIQUE INDEX "approvals_pkey" ON "approvals" ("id");
+CREATE INDEX "idx_approvals_quotation" ON "approvals" ("quotation_id");
+CREATE UNIQUE INDEX "category_spend_stats_pkey" ON "category_spend_stats" ("id");
+CREATE UNIQUE INDEX "category_spend_stats_year_month_category_key" ON "category_spend_stats" ("year","month","category");
+CREATE INDEX "idx_invoice_items_invoice" ON "invoice_items" ("invoice_id");
+CREATE UNIQUE INDEX "invoice_items_pkey" ON "invoice_items" ("id");
+CREATE INDEX "idx_invoices_due" ON "invoices" ("due_date");
+CREATE INDEX "idx_invoices_po" ON "invoices" ("po_id");
+CREATE INDEX "idx_invoices_status" ON "invoices" ("status");
+CREATE INDEX "idx_invoices_vendor" ON "invoices" ("vendor_id");
+CREATE UNIQUE INDEX "invoices_invoice_number_key" ON "invoices" ("invoice_number");
+CREATE UNIQUE INDEX "invoices_pkey" ON "invoices" ("id");
+CREATE UNIQUE INDEX "monthly_procurement_stats_pkey" ON "monthly_procurement_stats" ("id");
+CREATE UNIQUE INDEX "monthly_procurement_stats_year_month_key" ON "monthly_procurement_stats" ("year","month");
+CREATE INDEX "idx_notifications_created" ON "notifications" ("created_at");
+CREATE INDEX "idx_notifications_unread" ON "notifications" ("user_id","is_read");
+CREATE INDEX "idx_notifications_user" ON "notifications" ("user_id");
+CREATE UNIQUE INDEX "notifications_pkey" ON "notifications" ("id");
+CREATE INDEX "idx_po_items_po" ON "po_items" ("po_id");
+CREATE UNIQUE INDEX "po_items_pkey" ON "po_items" ("id");
+CREATE INDEX "idx_po_created_by" ON "purchase_orders" ("created_by");
+CREATE INDEX "idx_po_quotation" ON "purchase_orders" ("quotation_id");
+CREATE INDEX "idx_po_rfq" ON "purchase_orders" ("rfq_id");
+CREATE INDEX "idx_po_status" ON "purchase_orders" ("status");
+CREATE INDEX "idx_po_vendor" ON "purchase_orders" ("vendor_id");
+CREATE UNIQUE INDEX "purchase_orders_pkey" ON "purchase_orders" ("id");
+CREATE UNIQUE INDEX "purchase_orders_po_number_key" ON "purchase_orders" ("po_number");
+CREATE INDEX "idx_quotation_attachments_q" ON "quotation_attachments" ("quotation_id");
+CREATE UNIQUE INDEX "quotation_attachments_pkey" ON "quotation_attachments" ("id");
+CREATE INDEX "idx_quotation_items_quotation" ON "quotation_items" ("quotation_id");
+CREATE INDEX "idx_quotation_items_rfq_item" ON "quotation_items" ("rfq_item_id");
+CREATE UNIQUE INDEX "quotation_items_pkey" ON "quotation_items" ("id");
+CREATE INDEX "idx_quotations_rfq" ON "quotations" ("rfq_id");
+CREATE INDEX "idx_quotations_status" ON "quotations" ("status");
+CREATE INDEX "idx_quotations_vendor" ON "quotations" ("vendor_id");
+CREATE UNIQUE INDEX "quotations_pkey" ON "quotations" ("id");
+CREATE UNIQUE INDEX "quotations_quotation_number_key" ON "quotations" ("quotation_number");
+CREATE UNIQUE INDEX "quotations_rfq_id_vendor_id_revision_key" ON "quotations" ("rfq_id","vendor_id","revision");
+CREATE INDEX "idx_rfq_attachments_rfq" ON "rfq_attachments" ("rfq_id");
+CREATE UNIQUE INDEX "rfq_attachments_pkey" ON "rfq_attachments" ("id");
+CREATE INDEX "idx_rfq_items_rfq" ON "rfq_items" ("rfq_id");
+CREATE UNIQUE INDEX "rfq_items_pkey" ON "rfq_items" ("id");
+CREATE INDEX "idx_rfq_vendors_rfq" ON "rfq_vendors" ("rfq_id");
+CREATE INDEX "idx_rfq_vendors_vendor" ON "rfq_vendors" ("vendor_id");
+CREATE UNIQUE INDEX "rfq_vendors_pkey" ON "rfq_vendors" ("id");
+CREATE UNIQUE INDEX "rfq_vendors_rfq_id_vendor_id_key" ON "rfq_vendors" ("rfq_id","vendor_id");
+CREATE INDEX "idx_rfqs_created_by" ON "rfqs" ("created_by");
+CREATE INDEX "idx_rfqs_deadline" ON "rfqs" ("deadline");
+CREATE INDEX "idx_rfqs_status" ON "rfqs" ("status");
+CREATE UNIQUE INDEX "rfqs_pkey" ON "rfqs" ("id");
+CREATE UNIQUE INDEX "rfqs_rfq_number_key" ON "rfqs" ("rfq_number");
+CREATE INDEX "idx_users_email" ON "users" ("email");
+CREATE INDEX "idx_users_role" ON "users" ("role");
+CREATE INDEX "idx_users_status" ON "users" ("status");
+CREATE UNIQUE INDEX "users_email_key" ON "users" ("email");
+CREATE UNIQUE INDEX "users_pkey" ON "users" ("id");
+CREATE INDEX "idx_ratings_vendor" ON "vendor_ratings" ("vendor_id");
+CREATE UNIQUE INDEX "vendor_ratings_pkey" ON "vendor_ratings" ("id");
+CREATE UNIQUE INDEX "vendor_ratings_vendor_id_po_id_key" ON "vendor_ratings" ("vendor_id","po_id");
+CREATE INDEX "idx_vendors_category" ON "vendors" ("category");
+CREATE INDEX "idx_vendors_status" ON "vendors" ("status");
+CREATE INDEX "idx_vendors_user" ON "vendors" ("user_id");
+CREATE UNIQUE INDEX "vendors_pkey" ON "vendors" ("id");
