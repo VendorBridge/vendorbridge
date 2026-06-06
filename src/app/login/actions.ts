@@ -5,6 +5,18 @@ import { ROLE_REDIRECTS } from "@/lib/auth";
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+// Helper to check if an error is a Next.js redirect exception
+function isRedirectError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "digest" in err &&
+    typeof (err as any).digest === "string" &&
+    (err as any).digest.startsWith("NEXT_REDIRECT")
+  );
+}
 
 // ─────────────────────────────────────────────────────
 // In-memory rate limiter
@@ -108,25 +120,33 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
   }
 
   try {
+    // 1. Pre-fetch user's role to determine role-based redirect
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { role: true },
+    });
+    const role = user?.role ?? "PROCUREMENT_OFFICER";
+    const redirectTo = ROLE_REDIRECTS[role] ?? "/dashboard";
+
+    // 2. Perform NextAuth signIn with explicit redirectTo target
     await signIn("credentials", {
       email,
       password,
       remember: remember ? "true" : "false",
-      redirect: false,
+      redirectTo,
     });
 
     // Success — clear rate limit
     clearAttempts(email);
 
-    // Get session to determine role-based redirect
-    const session = await auth();
-    const role =
-      (session?.user as { role?: string } | undefined)?.role ??
-      "PROCUREMENT_OFFICER";
-    const redirectTo = ROLE_REDIRECTS[role] ?? "/dashboard";
-
     return { success: true, redirectTo };
   } catch (err) {
+    if (isRedirectError(err)) {
+      // Clear attempts on success redirect
+      clearAttempts(email);
+      throw err; // Re-throw redirect so Next.js handles navigation
+    }
+
     if (err instanceof AuthError) {
       const cause = err.cause?.err?.message ?? err.type ?? "";
 
@@ -181,6 +201,7 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
       };
     }
 
+    console.error("[Login Action Error]", err);
     return {
       success: false,
       error: {

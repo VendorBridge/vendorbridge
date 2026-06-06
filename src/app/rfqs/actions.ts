@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import type { RfqListItem, RfqStats, RfqStatusTab, RfqTabCounts } from "@/lib/rfqs";
 import type { RfqStatus } from "@prisma/client";
 
@@ -142,3 +143,74 @@ export async function getRFQs(filters: RFQFilters = {}): Promise<PaginatedRFQs> 
     },
   };
 }
+
+export async function submitRfqForApprovalAction(data: { rfqId: string; quotationId: string; vendorId: string }) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false as const, error: "Unauthorized." };
+  }
+
+  // Find a manager to assign to (fallback)
+  const manager = await db.user.findFirst({
+    where: { role: "MANAGER" },
+    select: { id: true },
+  });
+
+  return db.$transaction(async (tx) => {
+    // Check if there is already a pending approval for this RFQ
+    const existingApproval = await tx.approval.findFirst({
+      where: { rfqId: data.rfqId, status: "PENDING" },
+    });
+
+    if (existingApproval) {
+      return { success: false as const, error: "This RFQ is already under review." };
+    }
+
+    // Create the approval record
+    const approval = await tx.approval.create({
+      data: {
+        rfqId: data.rfqId,
+        quotationId: data.quotationId,
+        vendorId: data.vendorId,
+        status: "PENDING",
+        requestedBy: session!.user!.id as string,
+        assignedTo: manager?.id ?? null,
+      },
+    });
+
+    // Update RFQ status to CLOSED (under review)
+    await tx.rfq.update({
+      where: { id: data.rfqId },
+      data: { status: "CLOSED" },
+    });
+
+    // Notify Manager
+    if (manager?.id) {
+      await tx.notification.create({
+        data: {
+          userId: manager.id,
+          type: "APPROVAL_REQUESTED",
+          title: "Approval Requested",
+          message: `Approval requested for RFQ. Selected Quotation ID: ${data.quotationId}.`,
+          entityType: "APPROVAL",
+          entityId: approval.id,
+        },
+      });
+    }
+
+    // Log Activity
+    await tx.activityLog.create({
+      data: {
+        entityType: "RFQ",
+        entityId: data.rfqId,
+        action: "PUBLISHED", // Fallback action type compatible with DB
+        actorId: session!.user!.id as string,
+        description: `RFQ submitted for approval. Selected Quotation ID: ${data.quotationId}.`,
+        metadata: { quotationId: data.quotationId, vendorId: data.vendorId },
+      },
+    });
+
+    return { success: true as const, approvalId: approval.id };
+  });
+}
+
