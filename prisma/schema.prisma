@@ -67,12 +67,20 @@ model Vendor {
   @@map("vendors")
 }
 
+model RfqSequence {
+  year       Int @id
+  lastNumber Int @default(0) @map("last_number")
+
+  @@map("rfq_sequences")
+}
+
 model Rfq {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rfqNumber        String    @unique @map("rfq_number") @db.VarChar(50)
-  title            String    @db.VarChar(300)
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rfqNumber        String         @unique @map("rfq_number") @db.VarChar(50)
+  title            String         @db.VarChar(300)
+  category         VendorCategory @default(OTHER)
   description      String?
-  status           RfqStatus @default(DRAFT)
+  status           RfqStatus      @default(DRAFT)
   deadline         DateTime  @db.Date
   publishedAt      DateTime? @map("published_at") @db.Timestamptz(6)
   closedAt         DateTime? @map("closed_at") @db.Timestamptz(6)
