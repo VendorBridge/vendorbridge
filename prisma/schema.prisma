@@ -1,0 +1,374 @@
+// ==========================================================
+// VendorBridge — Prisma Schema (PostgreSQL / Neon)
+// ==========================================================
+// Best-practice conventions applied:
+//   • DB URL sourced from environment variable (never hardcoded)
+//   • All models use @@map for snake_case table names
+//   • All fields use @map for snake_case column names where needed
+//   • Indexes on every foreign key + frequently queried columns
+//   • Decimal(12,2) for all monetary values (no float rounding)
+//   • Soft-delete (deletedAt) on core entities
+//   • Session model for secure auth (no JWT-only reliance)
+//   • Notification model for real-time vendor/user alerts
+//   • Full audit-trail logging with entity references
+// ==========================================================
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  ADMIN
+  PROCUREMENT_OFFICER
+  MANAGER
+  VENDOR
+}
+
+enum VendorStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  BLACKLISTED
+}
+
+enum RfqStatus {
+  DRAFT
+  OPEN
+  EVALUATION
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum QuotationStatus {
+  SUBMITTED
+  REVISED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DocStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+  OVERDUE
+}
+
+enum NotificationType {
+  RFQ_INVITATION
+  QUOTATION_RECEIVED
+  APPROVAL_REQUIRED
+  APPROVAL_DECISION
+  PO_ISSUED
+  INVOICE_GENERATED
+  SYSTEM
+}
+
+// ==========================================
+// 1. AUTHENTICATION & USER MANAGEMENT
+// ==========================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  name          String
+  role          UserRole  @default(PROCUREMENT_OFFICER)
+  isActive      Boolean   @default(true) @map("is_active")
+  lastLoginAt   DateTime? @map("last_login_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  // Relations
+  vendorProfile Vendor?        @relation("VendorUser")
+  sessions      Session[]
+  createdRfqs   Rfq[]          @relation("RfqCreator")
+  approvals     Approval[]     @relation("Approver")
+  activityLogs  ActivityLog[]
+  notifications Notification[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  token        String   @unique
+  expiresAt    DateTime @map("expires_at")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ==========================================
+// 2. VENDOR DIRECTORY
+// ==========================================
+
+model Vendor {
+  id           String       @id @default(uuid())
+  userId       String?      @unique @map("user_id")
+  companyName  String       @map("company_name")
+  category     String       // e.g., Logistics, IT Hardware, Raw Materials
+  gstNumber    String       @unique @map("gst_number")
+  email        String       @unique
+  phone        String
+  address      String
+  city         String?
+  state        String?
+  pincode      String?
+  status       VendorStatus @default(PENDING_VERIFICATION)
+  rating       Float        @default(5.0)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  deletedAt    DateTime?    @map("deleted_at")
+
+  // Relations
+  user        User?        @relation("VendorUser", fields: [userId], references: [id], onDelete: SetNull)
+  quotations  Quotation[]
+  rfqInvited  Rfq[]        @relation("RfqVendors")
+
+  @@index([category])
+  @@index([status])
+  @@index([rating])
+  @@index([gstNumber])
+  @@map("vendors")
+}
+
+// ==========================================
+// 3. REQUEST FOR QUOTE (RFQ)
+// ==========================================
+
+model Rfq {
+  id          String    @id @default(uuid())
+  rfqNumber   String    @unique @map("rfq_number")
+  title       String
+  description String?
+  deadline    DateTime
+  status      RfqStatus @default(DRAFT)
+  creatorId   String    @map("creator_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  // Relations
+  creator        User        @relation("RfqCreator", fields: [creatorId], references: [id])
+  items          RfqItem[]
+  invitedVendors Vendor[]    @relation("RfqVendors")
+  quotations     Quotation[]
+  approval       Approval?
+
+  @@index([creatorId])
+  @@index([status])
+  @@index([deadline])
+  @@index([rfqNumber])
+  @@map("rfqs")
+}
+
+model RfqItem {
+  id          String   @id @default(uuid())
+  rfqId       String   @map("rfq_id")
+  productName String   @map("product_name")
+  quantity    Int
+  unit        String   // e.g., Kgs, Units, Hours
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  rfq Rfq @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+
+  @@index([rfqId])
+  @@map("rfq_items")
+}
+
+// ==========================================
+// 4. VENDOR QUOTATION BIDDING
+// ==========================================
+
+model Quotation {
+  id               String          @id @default(uuid())
+  rfqId            String          @map("rfq_id")
+  vendorId         String          @map("vendor_id")
+  totalAmount      Decimal?        @db.Decimal(12, 2) @map("total_amount")
+  deliveryTimeline Int             @map("delivery_timeline") // Calendar days
+  notes            String?
+  status           QuotationStatus @default(SUBMITTED)
+  submittedAt      DateTime        @default(now()) @map("submitted_at")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  rfq            Rfq             @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendor         Vendor          @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  items          QuotationItem[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([rfqId, vendorId]) // One bid per vendor per RFQ
+  @@index([rfqId])
+  @@index([vendorId])
+  @@index([status])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String  @id @default(uuid())
+  quotationId String  @map("quotation_id")
+  productName String  @map("product_name")
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(12, 2) @map("unit_price")
+  totalPrice  Decimal @db.Decimal(12, 2) @map("total_price")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+  @@map("quotation_items")
+}
+
+// ==========================================
+// 5. GOVERNANCE & APPROVAL ENGINE
+// ==========================================
+
+model Approval {
+  id         String         @id @default(uuid())
+  rfqId      String         @unique @map("rfq_id")
+  managerId  String?        @map("manager_id")
+  status     ApprovalStatus @default(PENDING)
+  remarks    String?
+  decidedAt  DateTime?      @map("decided_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  rfq     Rfq   @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  manager User? @relation("Approver", fields: [managerId], references: [id], onDelete: SetNull)
+
+  @@index([managerId])
+  @@index([status])
+  @@map("approvals")
+}
+
+// ==========================================
+// 6. PURCHASE ORDERS & INVOICING
+// ==========================================
+
+model PurchaseOrder {
+  id          String    @id @default(uuid())
+  poNumber    String    @unique @map("po_number")
+  quotationId String    @map("quotation_id")
+  totalAmount Decimal   @db.Decimal(12, 2) @map("total_amount")
+  status      DocStatus @default(ISSUED)
+  issuedAt    DateTime  @default(now()) @map("issued_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  quotation Quotation @relation(fields: [quotationId], references: [id])
+  invoices  Invoice[]
+
+  @@index([quotationId])
+  @@index([status])
+  @@index([poNumber])
+  @@map("purchase_orders")
+}
+
+model Invoice {
+  id              String    @id @default(uuid())
+  invoiceNumber   String    @unique @map("invoice_number")
+  purchaseOrderId String    @map("purchase_order_id")
+  subTotal        Decimal   @db.Decimal(12, 2) @map("sub_total")
+  taxPercent      Decimal   @default(18.0) @db.Decimal(5, 2) @map("tax_percent")
+  taxAmount       Decimal   @db.Decimal(12, 2) @map("tax_amount")
+  totalAmount     Decimal   @db.Decimal(12, 2) @map("total_amount")
+  dueDate         DateTime? @map("due_date")
+  paidAt          DateTime? @map("paid_at")
+  status          DocStatus @default(ISSUED)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseOrderId])
+  @@index([status])
+  @@index([invoiceNumber])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+// ==========================================
+// 7. NOTIFICATIONS
+// ==========================================
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false) @map("is_read")
+  linkUrl   String?          @map("link_url")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+// ==========================================
+// 8. AUDIT TRAIL LOGGING
+// ==========================================
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  action     String   // e.g., "RFQ_CREATED", "QUOTE_SUBMITTED", "PO_APPROVED"
+  entityType String?  @map("entity_type") // e.g., "RFQ", "QUOTATION", "PO"
+  entityId   String?  @map("entity_id")   // UUID of the affected entity
+  details    String
+  metadata   Json?    // Arbitrary JSON payload for extra context
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
