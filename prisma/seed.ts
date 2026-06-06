@@ -1,5 +1,4 @@
-import { PrismaClient, UserRole, VendorStatus, RfqStatus, QuotationStatus, ApprovalStatus } from "@prisma/client";
-import { randomUUID } from "crypto";
+import { PrismaClient, UserRole, VendorStatus, RfqStatus } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // Seed Script — npx prisma db seed
