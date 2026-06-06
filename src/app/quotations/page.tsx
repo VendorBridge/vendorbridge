@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Link from "next/link";
 import {
   FileText,
   Calendar,
@@ -14,6 +15,8 @@ import {
   Plus,
   Info,
   CheckCircle2,
+  BarChart3,
+  ArrowRight,
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────
@@ -140,28 +143,44 @@ export default function QuotationsPage() {
           mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
         )}
       >
-        <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-[hsl(var(--foreground))]">
-          Submit Quotation
-        </h1>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5">
-          <div className="flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))]">
-            <FileText className="size-3.5 text-[hsl(var(--primary))]" />
-            <span>
-              RFQ:{" "}
-              <span className="font-medium text-[hsl(var(--foreground))]">
-                {RFQ_DATA.title}
-              </span>
-            </span>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-[hsl(var(--foreground))]">
+              Submit Quotation
+            </h1>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5">
+              <div className="flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))]">
+                <FileText className="size-3.5 text-[hsl(var(--primary))]" />
+                <span>
+                  RFQ:{" "}
+                  <span className="font-medium text-[hsl(var(--foreground))]">
+                    {RFQ_DATA.title}
+                  </span>
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))]">
+                <Calendar className="size-3.5 text-amber-500" />
+                <span>
+                  Deadline:{" "}
+                  <span className="font-medium text-[hsl(var(--foreground))]">
+                    {RFQ_DATA.deadline}
+                  </span>
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))]">
-            <Calendar className="size-3.5 text-amber-500" />
-            <span>
-              Deadline:{" "}
-              <span className="font-medium text-[hsl(var(--foreground))]">
-                {RFQ_DATA.deadline}
-              </span>
-            </span>
-          </div>
+
+          {/* Compare button */}
+          <Link href="/quotations/compare">
+            <Button
+              variant="outline"
+              className="gap-2 rounded-xl px-5 shrink-0 hover:border-[hsl(var(--ring))]/30 transition-all group"
+            >
+              <BarChart3 className="size-4" />
+              <span className="hidden sm:inline">Compare Quotations</span>
+              <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+            </Button>
+          </Link>
         </div>
       </div>
 
