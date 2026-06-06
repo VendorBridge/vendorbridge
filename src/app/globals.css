@@ -164,3 +164,31 @@ body {
     );
   background-size: 20px 20px;
 }
+
+/* ─────────────────────────────────────────────────────
+   Theme-matching custom scrollbar
+   ───────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.3);
+  border-radius: 9999px;
+  border: 2px solid hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.8);
+}
+
+html {
+  scrollbar-color: hsl(var(--primary) / 0.3) hsl(var(--background));
+  scrollbar-width: thin;
+}
+
