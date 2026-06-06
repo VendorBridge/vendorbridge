@@ -173,7 +173,7 @@ export async function submitRfqForApprovalAction(data: { rfqId: string; quotatio
         quotationId: data.quotationId,
         vendorId: data.vendorId,
         status: "PENDING",
-        requestedBy: session.user.id,
+        requestedBy: session!.user!.id as string,
         assignedTo: manager?.id ?? null,
       },
     });
@@ -204,7 +204,7 @@ export async function submitRfqForApprovalAction(data: { rfqId: string; quotatio
         entityType: "RFQ",
         entityId: data.rfqId,
         action: "PUBLISHED", // Fallback action type compatible with DB
-        actorId: session.user.id,
+        actorId: session!.user!.id as string,
         description: `RFQ submitted for approval. Selected Quotation ID: ${data.quotationId}.`,
         metadata: { quotationId: data.quotationId, vendorId: data.vendorId },
       },

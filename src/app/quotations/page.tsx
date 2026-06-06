@@ -95,7 +95,7 @@ function QuotationsContent() {
               setNotes(q.vendorNotes ?? "");
               setDeliveryDays(q.deliveryDays ?? 7);
               setItems(
-                q.items.map((i) => ({
+                q.items.map((i: any) => ({
                   id: i.id,
                   rfqItemId: i.rfqItemId,
                   item: i.itemName,
@@ -107,7 +107,7 @@ function QuotationsContent() {
             } else {
               // Pre-fill items from RFQ
               setItems(
-                res.rfq.items.map((i) => ({
+                res.rfq.items.map((i: any) => ({
                   id: i.id,
                   rfqItemId: i.id,
                   item: i.itemName,
@@ -182,7 +182,7 @@ function QuotationsContent() {
       deliveryDays,
       vendorNotes: notes,
       isDraft,
-      items: items.map((i) => ({
+      items: items.map((i: any) => ({
         rfqItemId: i.rfqItemId?.startsWith("custom") ? undefined : i.rfqItemId,
         itemName: i.item,
         quantity: i.qty,

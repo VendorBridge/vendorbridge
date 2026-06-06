@@ -64,7 +64,7 @@ export default async function RfqDetailPage({ params }: PageProps) {
     quotations.forEach((q) => {
       // Find matching item in quotation by name
       const qItem = q.items.find(
-        (qi) => qi.itemName.toLowerCase() === rfqItem.itemName.toLowerCase()
+        (qi: any) => qi.itemName.toLowerCase() === rfqItem.itemName.toLowerCase()
       );
       if (qItem && Number(qItem.unitPrice) > 0) {
         minPrice = Math.min(minPrice, Number(qItem.unitPrice));
@@ -239,7 +239,7 @@ export default async function RfqDetailPage({ params }: PageProps) {
                       <td className="py-4 px-2 text-center font-medium text-[hsl(var(--muted-foreground))]">{rfqItem.quantity}</td>
                       {quotations.map((q) => {
                         const qItem = q.items.find(
-                          (qi) => qi.itemName.toLowerCase() === rfqKey
+                          (qi: any) => qi.itemName.toLowerCase() === rfqKey
                         );
                         const price = qItem ? Number(qItem.unitPrice) : null;
                         const total = qItem ? Number(qItem.lineTotal) : null;

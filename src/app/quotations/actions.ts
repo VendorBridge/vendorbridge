@@ -256,7 +256,7 @@ export async function submitQuotation(payload: QuotationPayload) {
       deliveryDays: payload.deliveryDays,
       vendorNotes: payload.vendorNotes ?? null,
       submittedAt: isDraft ? null : new Date(),
-      submittedBy: session.user.id,
+      submittedBy: session!.user!.id as string,
       revision,
     };
 
@@ -313,7 +313,7 @@ export async function submitQuotation(payload: QuotationPayload) {
           entityType: "QUOTATION",
           entityId: quotationId!,
           action: "SUBMITTED",
-          actorId: session.user.id,
+          actorId: session!.user!.id as string,
           description: `Quotation ${quotationNumber} submitted by ${vendor.companyName} for RFQ ${rfq.rfqNumber} (Rev ${revision}).`,
         },
       });
