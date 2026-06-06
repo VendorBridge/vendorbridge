@@ -10,7 +10,7 @@ async function getCurrentVendor() {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  return db.vendor.findUnique({
+  return db.vendor.findFirst({
     where: { userId: session.user.id },
   });
 }

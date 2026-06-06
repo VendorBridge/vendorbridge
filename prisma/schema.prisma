@@ -60,6 +60,8 @@ model Vendor {
   notes         String?
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  quotations    Quotation[]
+  rfqVendors    RfqVendor[]
 
   @@index([category], map: "idx_vendors_category")
   @@index([status], map: "idx_vendors_status")
@@ -92,6 +94,9 @@ model Rfq {
   quotationCount   Int       @default(0) @map("quotation_count")
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lineItems        RfqItem[]
+  rfqVendors       RfqVendor[]
+  quotations       Quotation[]
 
   @@index([createdBy], map: "idx_rfqs_created_by")
   @@index([deadline], map: "idx_rfqs_deadline")
@@ -110,6 +115,7 @@ model RfqItem {
   specifications     String?
   sortOrder          Int      @default(0) @map("sort_order")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  rfq                Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
 
   @@index([rfqId], map: "idx_rfq_items_rfq")
   @@map("rfq_items")
@@ -135,6 +141,8 @@ model RfqVendor {
   vendorId  String    @map("vendor_id") @db.Uuid
   invitedAt DateTime  @default(now()) @map("invited_at") @db.Timestamptz(6)
   viewedAt  DateTime? @map("viewed_at") @db.Timestamptz(6)
+  rfq       Rfq       @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendor    Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
   @@unique([rfqId, vendorId])
   @@index([rfqId], map: "idx_rfq_vendors_rfq")
@@ -169,6 +177,9 @@ model Quotation {
   parentId        String?         @map("parent_id") @db.Uuid
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  rfq             Rfq             @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendor          Vendor          @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  items           QuotationItem[]
 
   @@unique([rfqId, vendorId, revision])
   @@index([rfqId], map: "idx_quotations_rfq")
@@ -190,6 +201,7 @@ model QuotationItem {
   specifications String?
   sortOrder      Int      @default(0) @map("sort_order")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  quotation      Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
   @@index([quotationId], map: "idx_quotation_items_quotation")
   @@index([rfqItemId], map: "idx_quotation_items_rfq_item")
