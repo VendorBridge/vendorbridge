@@ -63,20 +63,39 @@ export function TopNav() {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
-        {/* Theme toggle */}
+        {/* Theme toggle — smooth spin animation */}
         {mounted && (
           <button
             type="button"
             aria-label="Toggle dark mode"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className={cn(
-              "p-2 rounded-xl transition-colors duration-200 cursor-pointer",
+              "relative p-2.5 rounded-xl cursor-pointer overflow-hidden",
               "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
-              "hover:bg-[hsl(var(--accent))]"
+              "hover:bg-[hsl(var(--accent))]",
+              "transition-colors duration-300"
             )}
           >
-            <Sun className="size-[18px] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute size-[18px] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 -mt-[18px]" />
+            <div className="relative size-[18px]">
+              {/* Sun icon */}
+              <Sun
+                className={cn(
+                  "absolute inset-0 size-[18px] transition-all duration-500 ease-in-out",
+                  theme === "dark"
+                    ? "rotate-90 scale-0 opacity-0"
+                    : "rotate-0 scale-100 opacity-100"
+                )}
+              />
+              {/* Moon icon */}
+              <Moon
+                className={cn(
+                  "absolute inset-0 size-[18px] transition-all duration-500 ease-in-out",
+                  theme === "dark"
+                    ? "rotate-0 scale-100 opacity-100"
+                    : "-rotate-90 scale-0 opacity-0"
+                )}
+              />
+            </div>
           </button>
         )}
 
