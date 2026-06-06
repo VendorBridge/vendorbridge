@@ -22,24 +22,26 @@ export async function getVendorInvitations() {
     return { success: false as const, error: "Unauthorized or not a Vendor user." };
   }
 
-  // Get all RFQs that this vendor is invited to
   const invitations = await db.rfqVendor.findMany({
     where: { vendorId: vendor.id },
-    include: {
-      rfq: {
-        select: {
-          id: true,
-          rfqNumber: true,
-          title: true,
-          status: true,
-          deadline: true,
-          category: true,
-          createdAt: true,
-        },
-      },
-    },
     orderBy: { invitedAt: "desc" },
   });
+
+  const rfqIds = [...new Set(invitations.map(i => i.rfqId))];
+  const rfqs = await db.rfq.findMany({
+    where: { id: { in: rfqIds } },
+    select: {
+      id: true,
+      rfqNumber: true,
+      title: true,
+      status: true,
+      deadline: true,
+      category: true,
+      createdAt: true,
+    }
+  });
+
+  const rfqMap = new Map(rfqs.map(r => [r.id, r]));
 
   // Fetch already submitted quotations for these RFQs by this vendor
   const submittedQuotes = await db.quotation.findMany({
@@ -61,13 +63,17 @@ export async function getVendorInvitations() {
 
   const data = invitations.map((invite) => {
     const quote = quoteMap.get(invite.rfqId);
+    const rfq = rfqMap.get(invite.rfqId);
+
+    if (!rfq) return null;
+
     return {
       rfqId: invite.rfqId,
-      rfqNumber: invite.rfq.rfqNumber,
-      title: invite.rfq.title,
-      status: invite.rfq.status,
-      deadline: invite.rfq.deadline.toISOString(),
-      category: invite.rfq.category,
+      rfqNumber: rfq.rfqNumber,
+      title: rfq.title,
+      status: rfq.status,
+      deadline: rfq.deadline.toISOString(),
+      category: rfq.category,
       invitedAt: invite.invitedAt.toISOString(),
       hasSubmitted: !!quote,
       quotation: quote
@@ -80,7 +86,7 @@ export async function getVendorInvitations() {
           }
         : null,
     };
-  });
+  }).filter(Boolean);
 
   return { success: true as const, invitations: data, vendorName: vendor.companyName };
 }
@@ -103,16 +109,16 @@ export async function getRfqForBidding(rfqId: string) {
 
   const rfq = await db.rfq.findUnique({
     where: { id: rfqId },
-    include: {
-      lineItems: {
-        orderBy: { sortOrder: "asc" },
-      },
-    },
   });
 
   if (!rfq) {
     return { success: false as const, error: "RFQ not found." };
   }
+
+  const rfqItems = await db.rfqItem.findMany({
+    where: { rfqId },
+    orderBy: { sortOrder: "asc" },
+  });
 
   if (rfq.status !== "PUBLISHED") {
     return { success: false as const, error: "This RFQ is no longer open for bidding." };
@@ -121,12 +127,15 @@ export async function getRfqForBidding(rfqId: string) {
   // Check if a quotation already exists
   const existingQuotation = await db.quotation.findFirst({
     where: { rfqId, vendorId: vendor.id },
-    include: {
-      items: {
-        orderBy: { sortOrder: "asc" },
-      },
-    },
   });
+
+  let existingItems: any[] = [];
+  if (existingQuotation) {
+    existingItems = await db.quotationItem.findMany({
+      where: { quotationId: existingQuotation.id },
+      orderBy: { sortOrder: "asc" },
+    });
+  }
 
   return {
     success: true as const,
@@ -137,7 +146,7 @@ export async function getRfqForBidding(rfqId: string) {
       deadline: rfq.deadline.toISOString(),
       category: rfq.category,
       description: rfq.description,
-      items: rfq.lineItems.map((item) => ({
+      items: rfqItems.map((item) => ({
         id: item.id,
         itemName: item.itemName,
         description: item.description,
@@ -157,7 +166,7 @@ export async function getRfqForBidding(rfqId: string) {
           grandTotal: Number(existingQuotation.grandTotal),
           deliveryDays: existingQuotation.deliveryDays,
           vendorNotes: existingQuotation.vendorNotes,
-          items: existingQuotation.items.map((item) => ({
+          items: existingItems.map((item) => ({
             id: item.id,
             rfqItemId: item.rfqItemId,
             itemName: item.itemName,

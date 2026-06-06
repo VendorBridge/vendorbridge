@@ -32,7 +32,7 @@ export function useLenis() {
 
     return () => {
       lenis.destroy();
-      ScrollTrigger.getAll().forEach((st) => st.kill());
+      ScrollTrigger.getAll().forEach((st: any) => st.kill());
     };
   }, []);
 }

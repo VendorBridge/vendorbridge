@@ -39,21 +39,41 @@ export default async function RfqDetailPage({ params }: PageProps) {
   }
 
   // Fetch submitted quotations
-  const quotations = await db.quotation.findMany({
+  const rawQuotations = await db.quotation.findMany({
     where: { rfqId: id, status: "SUBMITTED" },
-    include: {
-      vendor: {
-        select: {
-          companyName: true,
-          rating: true,
-        },
-      },
-      items: {
-        orderBy: { sortOrder: "asc" },
-      },
-    },
     orderBy: { grandTotal: "asc" }, // Ascending so cheapest shows first
   });
+
+  const quotationIds = rawQuotations.map(q => q.id);
+  const vendorIds = [...new Set(rawQuotations.map(q => q.vendorId))];
+
+  const [vendors, allItems] = await Promise.all([
+    db.vendor.findMany({
+      where: { id: { in: vendorIds } },
+      select: { id: true, companyName: true, rating: true }
+    }),
+    db.quotationItem.findMany({
+      where: { quotationId: { in: quotationIds } },
+      orderBy: { sortOrder: "asc" }
+    })
+  ]);
+
+  const vendorMap = new Map(vendors.map(v => [v.id, v]));
+  
+  // Group items by quotationId
+  const itemsMap = new Map<string, any[]>();
+  allItems.forEach(item => {
+    if (!itemsMap.has(item.quotationId)) {
+      itemsMap.set(item.quotationId, []);
+    }
+    itemsMap.get(item.quotationId)!.push(item);
+  });
+
+  const quotations = rawQuotations.map(q => ({
+    ...q,
+    vendor: vendorMap.get(q.vendorId) || { companyName: "Unknown", rating: 0 },
+    items: itemsMap.get(q.id) || []
+  }));
 
   const isRfqClosed = rfq.status === "CLOSED";
 

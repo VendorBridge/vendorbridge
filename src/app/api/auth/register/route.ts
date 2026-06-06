@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[Register API Error]", err);
     return NextResponse.json(
-      { success: false, error: "An unexpected error occurred. Please try again." },
+      { success: false, error: err instanceof Error ? err.message : "An unexpected error occurred. Please try again." },
       { status: 500 }
     );
   }

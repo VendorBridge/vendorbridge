@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Mail, ArrowLeft, CheckCircle, AlertTriangle } from "lucide-react";
 
@@ -79,13 +80,13 @@ function VerifyEmailContent() {
         )}
 
         <div className="flex justify-center pt-2">
-          <a
+          <Link
             href="/login"
             className="inline-flex items-center gap-2 text-sm font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
           >
             <ArrowLeft className="size-4" />
             Back to Login
-          </a>
+          </Link>
         </div>
       </div>
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -422,10 +423,10 @@ export default function LoginPage() {
                   Remember for 30 days
                 </span>
               </label>
-              <a href="/forgot-password"
+              <Link href="/forgot-password"
                 className="text-sm font-medium text-[hsl(var(--primary))] hover:underline transition-colors">
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             {/* Error messages */}
@@ -501,10 +502,10 @@ export default function LoginPage() {
           {/* Sign up link */}
           <p className="text-center text-sm text-[hsl(var(--muted-foreground))] mt-8">
             Don&apos;t have an account?{" "}
-            <a href="/register"
+            <Link href="/register"
               className="font-semibold text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] hover:underline transition-colors">
               Sign up
-            </a>
+            </Link>
           </p>
 
           {/* Demo credentials hint */}

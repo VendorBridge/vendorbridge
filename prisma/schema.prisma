@@ -327,6 +327,7 @@ model Invoice {
   createdBy         String        @map("created_by") @db.Uuid
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  items             InvoiceItem[]
 
   @@index([dueDate], map: "idx_invoices_due")
   @@index([poId], map: "idx_invoices_po")
@@ -348,6 +349,7 @@ model InvoiceItem {
   lineSubtotal Decimal? @map("line_subtotal") @db.Decimal(15, 2)
   sortOrder    Int      @default(0) @map("sort_order")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId], map: "idx_invoice_items_invoice")
   @@map("invoice_items")

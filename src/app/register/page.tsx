@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -607,9 +608,9 @@ export default function RegisterPage() {
                       <span>
                         {emailError}{" "}
                         {emailError.includes("registered") && (
-                          <a href="/login" className="underline font-bold text-primary hover:text-primary/80">
+                          <Link href="/login" className="underline font-bold text-primary hover:text-primary/80">
                             Login instead
-                          </a>
+                          </Link>
                         )}
                       </span>
                     </div>
@@ -920,12 +921,12 @@ export default function RegisterPage() {
           <div className="text-center mt-8">
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
               Already have an account?{" "}
-              <a
+              <Link
                 href="/login"
                 className="font-bold text-[hsl(var(--foreground))] hover:text-primary hover:underline transition-colors"
               >
                 Sign in
-              </a>
+              </Link>
             </p>
           </div>
 

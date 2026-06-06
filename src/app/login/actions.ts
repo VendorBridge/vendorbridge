@@ -3,18 +3,15 @@
 import { signIn } from "@/lib/auth";
 import { ROLE_REDIRECTS } from "@/lib/auth";
 import { AuthError } from "next-auth";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-// Helper to check if an error is a Next.js redirect exception
-function isRedirectError(err: unknown): boolean {
+function isRedirectError(err: any): boolean {
   return (
     typeof err === "object" &&
     err !== null &&
     "digest" in err &&
-    typeof (err as any).digest === "string" &&
-    (err as any).digest.startsWith("NEXT_REDIRECT")
+    typeof err.digest === "string" &&
+    err.digest.startsWith("NEXT_REDIRECT;")
   );
 }
 
